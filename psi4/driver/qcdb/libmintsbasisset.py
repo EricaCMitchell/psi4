@@ -507,7 +507,7 @@ class BasisSet(object):
             raise ValidationError("""Lengths of keys, targets, and fitroles must be equal""")
 
         # Create (if necessary) and update qcdb.Molecule
-        if isinstance(mol, basestring):
+        if isinstance(mol, str):
             mol = Molecule(mol)
             returnBasisSet = False
         elif isinstance(mol, Molecule):
@@ -524,22 +524,16 @@ class BasisSet(object):
             name += targets[at] + " + "
             sets.append(bas)
 
-        #!
-        print(bas)
-
         name = name[:-3].strip()
         # work our way through the sets merging them
-        combined_atom_basis_shell = OrderedDict()
-
-        #!
-        print(combined_atom_basis_shell)
+        combined_atom_basis_shell = collections.OrderedDict()
 
         for at in range(len(sets)):
             atom_basis_shell = sets[at].atom_basis_shell
 
             for label, basis_map in atom_basis_shell.items():
                 if label not in combined_atom_basis_shell:
-                    combined_atom_basis_shell[label] = OrderedDict()
+                    combined_atom_basis_shell[label] = collections.OrderedDict()
                     combined_atom_basis_shell[label][name] = []
                 for basis, shells in basis_map.items():
                     combined_atom_basis_shell[label][name].extend(shells)
