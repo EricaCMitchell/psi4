@@ -269,14 +269,19 @@ OrbitalSpace OrbitalSpace::build_ri_space(const std::shared_ptr<Molecule> &molec
     // Construct a combined basis set.
     Options &options = Process::environment.options;
     std::vector<std::string> keys, targets, roles, others;
+
     keys.push_back(obs_key);
     keys.push_back(aux_key);
+
     targets.push_back(options.get_str(obs_key));
     targets.push_back(options.get_str(aux_key));
+
     roles.push_back(obs_key);
     roles.push_back("F12");
+
     others.push_back(options.get_str(obs_key));
     others.push_back(options.get_str(obs_key));
+
     throw PSIEXCEPTION("build_ri_space has not been updated to the new python based basis set construction scheme.");
     // std::shared_ptr<BasisSet> combined = BasisSet::pyconstruct_combined(molecule, keys, targets, roles, others);
     std::shared_ptr<BasisSet> combined = BasisSet::zero_ao_basis_set();
