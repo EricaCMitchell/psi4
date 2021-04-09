@@ -1162,13 +1162,11 @@ void export_mints(py::module& m) {
                     The third argument is the tolerance for linear dependencies",
                     "orb_space"_a, "ri_space"_a, "linear_tol"_a)
         .def_static("build_ri_space", &OrbitalSpace::build_ri_space,
-                    "Given two basis sets, it merges the basis sets and then constructs an orthogonalized \
+                    "Given combined basis sets, it constructs an orthogonalized \
                     space with the same span. Linearly dependent orbitals are thrown out. \
-                    The first argument, molecule, is the molecule to construct the basis for \
-                    The second argument, obs_key, is the option keyword for orbital basis set 'BASIS' \
-                    The third argument, aux_key, is the option keyword for auxiliery basis set 'DF_BASIS_MP2' \
-                    The fourth argument, lindep_tol, is the tolerance for linear dependencies",
-                    "molecule"_a, "obs_key"_a, "aux_key"_a, "lindep_tol"_a);
+                    The first argument, combined, is the two basis sets together but unorthogonalized \
+                    The second argument, lindep_tol, is the tolerance for linear dependencies",
+                    "combined"_a, "lindep_tol"_a);
 
     py::class_<PointGroup, std::shared_ptr<PointGroup>>(m, "PointGroup", "Contains information about the point group")
         .def(py::init<const std::string&>())

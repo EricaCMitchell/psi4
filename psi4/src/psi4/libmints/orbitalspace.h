@@ -122,15 +122,11 @@ class PSI_API OrbitalSpace {
     static OrbitalSpace build_cabs_space(const OrbitalSpace& orb_space, const OrbitalSpace& ri_space,
                                          double linear_tol);
 
-    /** Given two basis sets, it merges the basis sets and then constructs an orthogonalized
+    /** Given a combined basis sets, it constructs an orthogonalized
      * space with the same span. Linearly dependent orbitals are thrown out.
-     * \param molecule molecule to construct the basis for
-     * \param obs_key option keyword for orbital basis set "BASIS"
-     * \param aux_key option keyword for auxiliery basis set "DF_BASIS_MP2"
      * \param lindep_tol The tolerance for linear dependencies
      */
-    static OrbitalSpace build_ri_space(const std::shared_ptr<Molecule>& molecule, const std::string& obs_key,
-                                       const std::string& aux_key, double lindep_tol);
+    static OrbitalSpace build_ri_space(const std::shared_ptr<BasisSet>& combined, double lindep_tol);
 
     /** Given a basis set, it orthogonalizes the orbitals and returns a space with the same
      * span but orthogonal orbitals. Also, linear dependent orbitals are projected out.

@@ -507,7 +507,7 @@ class BasisSet(object):
             raise ValidationError("""Lengths of keys, targets, and fitroles must be equal""")
 
         # Create (if necessary) and update qcdb.Molecule
-        if isinstance(mol, basestring):
+        if isinstance(mol, str):
             mol = Molecule(mol)
             returnBasisSet = False
         elif isinstance(mol, Molecule):
@@ -519,34 +519,36 @@ class BasisSet(object):
         # load in the basis sets
         sets = []
         name = ""
+        keywords = ""
+        blends = ""
         for at in range(len(keys)):
             bas = BasisSet.pyconstruct(mol, keys[at], targets[at], fitroles[at], others[at])
             name += targets[at] + " + "
-            sets.append(bas)
-
-        #!
-        print(bas)
+            keywords += keys[at] + " + "
+            blends += bas.name.upper() + " + "
+            sets.append(bas) 
 
         name = name[:-3].strip()
-        # work our way through the sets merging them
-        combined_atom_basis_shell = OrderedDict()
+        keywords = keywords[:-3].strip()
+        blends = blends[:-3].strip()
 
-        #!
-        print(combined_atom_basis_shell)
+        # work our way through the sets merging them
+        combined_atom_basis_shell = collections.OrderedDict()
 
         for at in range(len(sets)):
             atom_basis_shell = sets[at].atom_basis_shell
 
             for label, basis_map in atom_basis_shell.items():
                 if label not in combined_atom_basis_shell:
-                    combined_atom_basis_shell[label] = OrderedDict()
+                    combined_atom_basis_shell[label] = collections.OrderedDict()
                     combined_atom_basis_shell[label][name] = []
                 for basis, shells in basis_map.items():
                     combined_atom_basis_shell[label][name].extend(shells)
 
-        #for label, basis_map in combined_atom_basis_shell.items():
-        #    # sort the shells by angular momentum
-        #    combined_atom_basis_shell[label][name] = sorted(combined_atom_basis_shell[label][name], key=lambda shell: she
+        for label, basis_map in combined_atom_basis_shell.items():
+            # sort the shells by angular momentum
+            combined_atom_basis_shell[label][name] = sorted(combined_atom_basis_shell[label][name], \
+                    key = lambda shell : shell.l)
 
         # Molecule and parser prepped, call the constructor
         mol.set_basis_all_atoms(name, "CABS")
@@ -573,6 +575,8 @@ class BasisSet(object):
             bsdict = {}
             bsdict['message'] = text
             bsdict['name'] = basisset.name
+            bsdict['key'] = keywords
+            bsdict['blend'] = blends
             bsdict['puream'] = int(basisset.has_puream())
             bsdict['shell_map'] = basisset.export_for_libmints("CABS")
             return bsdict

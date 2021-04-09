@@ -1730,6 +1730,7 @@ std::tuple<SharedMatrix, SharedVector, SharedMatrix> Matrix::svd_temps() {
 }
 
 std::tuple<SharedMatrix, SharedVector, SharedMatrix> Matrix::svd_a_temps() {
+
     Dimension rank(nirrep_);
     for (int h = 0; h < nirrep_; h++) {
         int m = rowspi_[h];
@@ -1739,6 +1740,7 @@ std::tuple<SharedMatrix, SharedVector, SharedMatrix> Matrix::svd_a_temps() {
     auto U = std::make_shared<Matrix>("U", rowspi_, rowspi_);
     auto S = std::make_shared<Vector>("S", rank);
     auto V = std::make_shared<Matrix>("V", colspi_, colspi_);
+
     return std::tuple<SharedMatrix, SharedVector, SharedMatrix>(U, S, V);
 }
 
