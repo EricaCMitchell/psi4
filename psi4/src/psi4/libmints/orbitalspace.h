@@ -122,7 +122,7 @@ class PSI_API OrbitalSpace {
     static OrbitalSpace build_cabs_space(const OrbitalSpace& orb_space, const OrbitalSpace& ri_space,
                                          double linear_tol);
 
-    /** Given a combined basis sets, it constructs an orthogonalized
+    /** Given a combined basis set, it constructs an orthogonalized
      * space with the same span. Linearly dependent orbitals are thrown out.
      * \param lindep_tol The tolerance for linear dependencies
      */
