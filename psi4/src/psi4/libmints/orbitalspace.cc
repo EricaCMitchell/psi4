@@ -218,11 +218,11 @@ OrbitalSpace orthogonal_complement(const OrbitalSpace &space1, const OrbitalSpac
     //        C12->print();
             
     // SVD of MO overlap matrix
-    std::tuple<SharedMatrix, SharedVector, SharedMatrix> svd_temps = O12->svd_a_temps();
+    std::tuple<SharedMatrix, SharedVector, SharedMatrix> svd_temps = C12->svd_a_temps();
     SharedMatrix U = std::get<0>(svd_temps);
     SharedVector S = std::get<1>(svd_temps);
     SharedMatrix Vt = std::get<2>(svd_temps);
-    O12->svd_a(U, S, Vt);
+    C12->svd_a(U, S, Vt);
 
     // Select nullspace vectors from V
     Dimension dim_zero(space1.nirrep());
