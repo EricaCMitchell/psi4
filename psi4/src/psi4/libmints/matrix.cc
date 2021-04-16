@@ -820,6 +820,7 @@ void Matrix::print_to_mathematica() {
             for (int c = 0; c < colspi_[h ^ symmetry_]; ++c) {
                 outfile->Printf("%14.12lf", get(h, r, c));
                 if (c < colspi_[h] - 1) outfile->Printf(", ");
+		if (c % 10 == 0) outfile->Printf("\n");
             }
             outfile->Printf("}");
             if (r < rowspi_[h] - 1) outfile->Printf(",\n");

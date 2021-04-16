@@ -179,7 +179,6 @@ OrbitalSpace orthogonalize(const std::string &id, const std::string &name, const
 
     int nlindep = 0;
     overlap->diagonalize(evecs, evals);
-
     for (int h = 0; h < SODIM.n(); h++) {
         for (int i = 0; i < SODIM[h]; i++) {
             if (std::fabs(evals->get(h, i)) > lindep_tol) {
@@ -191,17 +190,16 @@ OrbitalSpace orthogonalize(const std::string &id, const std::string &name, const
         }
     }
 
-    sqrtm->back_transform(evecs);
-
-    sqrtm->print();
+    auto newC = std::make_shared<Matrix>("C SO Space2", SODIM, SODIM);
+    newC->gemm(false, false, 1.0, evecs, sqrtm, 0.0);
 
     outfile->Printf("    %d linear dependencies will be \'removed\'.\n", nlindep);
 
     auto localfactory = std::make_shared<IntegralFactory>(bs);
-    return OrbitalSpace(id, name, sqrtm, bs, localfactory);
+    return OrbitalSpace(id, name, newC, bs, localfactory);
 }
 
-OrbitalSpace orthogonal_compliment(const OrbitalSpace &space1, const OrbitalSpace &space2, const std::string &id,
+OrbitalSpace orthogonal_complement(const OrbitalSpace &space1, const OrbitalSpace &space2, const std::string &id,
                                    const std::string &name, const double &lindep_tol) {
     outfile->Printf("    Projecting out '%s' from '%s' to obtain space '%s'\n", space1.name().c_str(),
                     space2.name().c_str(), name.c_str());
@@ -212,10 +210,14 @@ OrbitalSpace orthogonal_compliment(const OrbitalSpace &space1, const OrbitalSpac
         return OrbitalSpace(id, name, space2.C(), space2.evals(), space2.basisset(), space2.integral());
     }
 
-    // O12 = O12
+    // Overlap Matrix
     SharedMatrix O12 = OrbitalSpace::overlap(space1, space2);
 
-    // SVD of SO overlap matrix
+    auto C12 = std::make_shared<Matrix>("C12", space1.C()->colspi(), space2.C()->colspi());
+    C12->transform(space1.C(), O12, space2.C());
+    //        C12->print();
+            
+    // SVD of MO overlap matrix
     std::tuple<SharedMatrix, SharedVector, SharedMatrix> svd_temps = O12->svd_a_temps();
     SharedMatrix U = std::get<0>(svd_temps);
     SharedVector S = std::get<1>(svd_temps);
@@ -224,27 +226,21 @@ OrbitalSpace orthogonal_compliment(const OrbitalSpace &space1, const OrbitalSpac
 
     // Select nullspace vectors from V
     Dimension dim_zero(space1.nirrep());
-    Dimension Np(space2.dim() - S->dimpi());
-    auto V = Vt->transpose();
-    auto V_N = V->get_block({dim_zero, Np},{dim_zero, Vt->colspi()});
-    auto V_2N = V_N->transpose();
+    Dimension Np(S->dimpi());
+    auto V_Nt = Vt->get_block({Np, Vt->rowspi()},{dim_zero, Vt->colspi()});
+    auto V_N = V_Nt->transpose();
 
     outfile->Printf("        Orbital space before projecting out: ");
     space2.dim().print();
     outfile->Printf("        Orbital space after projecting out:  ");
-    Np.print();
+    (space2.dim() - Np).print();
     outfile->Printf("\n");
 
     // Half-back transform to space2
-    auto newC = std::make_shared<Matrix>("Transformation matrix", space2.C()->rowspi(), Np);
-    newC->gemm(false, false, 1.0, space2.C(), V_2N, 0.0);
-
+    auto newC = std::make_shared<Matrix>("Transformation matrix", space2.C()->rowspi(), V_N->colspi());
+    newC->gemm(false, false, 1.0, space2.C(), V_N, 0.0);
+     
 #if notSVD
-    // C12 = C1t * S12 * C2
-    auto C12 = std::make_shared<Matrix>("C12", space1.C()->colspi(), space2.C()->colspi());
-    C12->transform(space1.C(), O12, space2.C());
-    //        C12->print();
-
     // We're interested in the right side vectors (V) of an SVD solution.
     // We don't need a full SVD solution just part of it. Do it by hand:
     auto D11 = std::make_shared<Matrix>("D11", C12->colspi(), C12->colspi());
@@ -254,7 +250,6 @@ OrbitalSpace orthogonal_compliment(const OrbitalSpace &space1, const OrbitalSpac
     auto V11 = std::make_shared<Matrix>("V11", D11->rowspi(), D11->colspi());
     auto E1 = std::make_shared<Vector>("E1", D11->colspi());
     D11->diagonalize(V11, E1);
-    //        V11->eivprint();
 
     // Count the number of eigenvalues < lindep_tol
     Dimension zeros(space1.nirrep());
@@ -273,10 +268,12 @@ OrbitalSpace orthogonal_compliment(const OrbitalSpace &space1, const OrbitalSpac
     // Pull out the nullspace vectors
     Dimension dim_zero(space1.nirrep());
     SharedMatrix V = V11->get_block({dim_zero, V11->rowspi()}, {dim_zero, zeros});
+    V->print();
 
     // Half-back transform to space2
     auto newC = std::make_shared<Matrix>("Transformation matrix", space2.C()->rowspi(), zeros);
     newC->gemm(false, false, 1.0, space2.C(), V, 0.0);
+    newC->print();
 #endif
 
     return OrbitalSpace(id, name, newC, space2.basisset(), space2.integral());
@@ -285,7 +282,7 @@ OrbitalSpace orthogonal_compliment(const OrbitalSpace &space1, const OrbitalSpac
 
 OrbitalSpace OrbitalSpace::build_cabs_space(const OrbitalSpace &orb_space, const OrbitalSpace &ri_space,
                                             double lindep_tol) {
-    return orthogonal_compliment(orb_space, ri_space, "p''", "CABS", lindep_tol);
+    return orthogonal_complement(orb_space, ri_space, "p''", "CABS", lindep_tol);
 }
 
 OrbitalSpace OrbitalSpace::build_ri_space(const std::shared_ptr<BasisSet> &combined, double lindep_tol) {
