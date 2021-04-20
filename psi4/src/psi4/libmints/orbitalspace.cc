@@ -178,7 +178,7 @@ OrbitalSpace orthogonalize(const std::string &id, const std::string &name, const
     auto evals = std::make_shared<Vector>("evals", SODIM);
 
     int nlindep = 0;
-    overlap->diagonalize(evecs, evals);
+    overlap->diagonalize(evecs, evals, descending);
     for (int h = 0; h < SODIM.n(); h++) {
         for (int i = 0; i < SODIM[h]; i++) {
             if (std::fabs(evals->get(h, i)) > lindep_tol) {
@@ -190,13 +190,13 @@ OrbitalSpace orthogonalize(const std::string &id, const std::string &name, const
         }
     }
 
-    auto newC = std::make_shared<Matrix>("C SO Space2", SODIM, SODIM);
-    newC->gemm(false, false, 1.0, evecs, sqrtm, 0.0);
+    auto X = std::make_shared<Matrix>("Transformation Matrix Space2", SODIM, SODIM);
+    X->gemm(false, false, 1.0, evecs, sqrtm, 0.0);
 
     outfile->Printf("    %d linear dependencies will be \'removed\'.\n", nlindep);
 
     auto localfactory = std::make_shared<IntegralFactory>(bs);
-    return OrbitalSpace(id, name, newC, bs, localfactory);
+    return OrbitalSpace(id, name, X, bs, localfactory);
 }
 
 OrbitalSpace orthogonal_complement(const OrbitalSpace &space1, const OrbitalSpace &space2, const std::string &id,
@@ -216,7 +216,7 @@ OrbitalSpace orthogonal_complement(const OrbitalSpace &space1, const OrbitalSpac
     auto C12 = std::make_shared<Matrix>("C12", space1.C()->colspi(), space2.C()->colspi());
     C12->transform(space1.C(), O12, space2.C());
     //        C12->print();
-            
+     
     // SVD of MO overlap matrix
     std::tuple<SharedMatrix, SharedVector, SharedMatrix> svd_temps = C12->svd_a_temps();
     SharedMatrix U = std::get<0>(svd_temps);
@@ -239,7 +239,7 @@ OrbitalSpace orthogonal_complement(const OrbitalSpace &space1, const OrbitalSpac
     // Half-back transform to space2
     auto newC = std::make_shared<Matrix>("Transformation matrix", space2.C()->rowspi(), V_N->colspi());
     newC->gemm(false, false, 1.0, space2.C(), V_N, 0.0);
-     
+
 #if notSVD
     // We're interested in the right side vectors (V) of an SVD solution.
     // We don't need a full SVD solution just part of it. Do it by hand:

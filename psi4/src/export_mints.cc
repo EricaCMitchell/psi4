@@ -1160,13 +1160,13 @@ void export_mints(py::module& m) {
                     The first argument (orb_space) is the space to project out. The returned space will be orthogonal to this \
                     The second argument (ri_space) is the space that is being projected on. The returned space = this space - orb_space \
                     The third argument is the tolerance for linear dependencies",
-                    "orb_space"_a, "ri_space"_a, "linear_tol"_a)
+                    "orb_space"_a, "ri_space"_a, "linear_tol"_a = 1.e-6)
         .def_static("build_ri_space", &OrbitalSpace::build_ri_space,
                     "Given combined basis sets, it constructs an orthogonalized \
                     space with the same span. Linearly dependent orbitals are thrown out. \
                     The first argument, combined, is the two basis sets together but unorthogonalized \
                     The second argument, lindep_tol, is the tolerance for linear dependencies",
-                    "combined"_a, "lindep_tol"_a);
+                    "combined"_a, "lindep_tol"_a = 1.6e-6);
 
     py::class_<PointGroup, std::shared_ptr<PointGroup>>(m, "PointGroup", "Contains information about the point group")
         .def(py::init<const std::string&>())

@@ -120,13 +120,13 @@ class PSI_API OrbitalSpace {
      * \param linear_tol The tolerance for linear dependencies.
      */
     static OrbitalSpace build_cabs_space(const OrbitalSpace& orb_space, const OrbitalSpace& ri_space,
-                                         double linear_tol);
+                                         double linear_tol = 1.e-6);
 
     /** Given a combined basis set, it constructs an orthogonalized
      * space with the same span. Linearly dependent orbitals are thrown out.
      * \param lindep_tol The tolerance for linear dependencies
      */
-    static OrbitalSpace build_ri_space(const std::shared_ptr<BasisSet>& combined, double lindep_tol);
+    static OrbitalSpace build_ri_space(const std::shared_ptr<BasisSet>& combined, double lindep_tol = 1.e-6);
 
     /** Given a basis set, it orthogonalizes the orbitals and returns a space with the same
      * span but orthogonal orbitals. Also, linear dependent orbitals are projected out.
