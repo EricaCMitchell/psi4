@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -30,6 +30,8 @@
 #define _psi_src_bin_psimrcc_mrccsd_t_h_
 
 #include <vector>
+
+#include "psimrcc_wfn.h"
 
 namespace psi {
 namespace psimrcc {
@@ -126,6 +128,8 @@ class MRCCSD_T {
 
     Options& options_;
 
+    std::shared_ptr<PSIMRCCWfn> wfn_;
+
     int nirreps;
     int nrefs;
 
@@ -135,18 +139,18 @@ class MRCCSD_T {
 
     Hamiltonian* h_eff;
 
-    std::vector<std::vector<bool> > is_aocc;
-    std::vector<std::vector<bool> > is_bocc;
-    std::vector<std::vector<bool> > is_avir;
-    std::vector<std::vector<bool> > is_bvir;
+    std::vector<std::vector<bool>> is_aocc;
+    std::vector<std::vector<bool>> is_bocc;
+    std::vector<std::vector<bool>> is_avir;
+    std::vector<std::vector<bool>> is_bvir;
 
     // Denominators
-    std::vector<std::vector<double> > e_oo;
-    std::vector<std::vector<double> > e_OO;
-    std::vector<std::vector<double> > e_vv;
-    std::vector<std::vector<double> > e_VV;
+    std::vector<std::vector<double>> e_oo;
+    std::vector<std::vector<double>> e_OO;
+    std::vector<std::vector<double>> e_vv;
+    std::vector<std::vector<double>> e_VV;
 
-    std::vector<std::vector<double> > Mk_factor;
+    std::vector<std::vector<double>> Mk_factor;
     std::vector<double> Mk_shift;
 
     std::vector<std::vector<double**>> F_ov;
@@ -237,7 +241,7 @@ class MRCCSD_T {
     std::vector<double> E4_oOO;
     std::vector<double> E4_OOO;
 
-    std::vector<std::vector<double> > d_h_eff;
+    std::vector<std::vector<double>> d_h_eff;
 };
 
 }  // namespace psimrcc

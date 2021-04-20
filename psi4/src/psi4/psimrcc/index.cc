@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -37,7 +37,6 @@
 
 #include "psi4/libmoinfo/libmoinfo.h"
 #include "psi4/libpsi4util/libpsi4util.h"
-#include "psi4/libpsi4util/memory_manager.h"
 #include "psi4/libpsi4util/PsiOutStream.h"
 
 #include "index.h"
@@ -46,20 +45,13 @@ namespace psi {
 
 namespace psimrcc {
 
-extern MemoryManager* memory_manager;
-extern MOInfo* moinfo;
-
-CCIndex::CCIndex(std::string str)
-    : label(str),
-      nelements(0),
-      greater_than_or_equal(false),
-      greater_than(false),
-      ntuples(0) {
-    nirreps = moinfo->get_nirreps();
+CCIndex::CCIndex(std::shared_ptr<PSIMRCCWfn> wfn, std::string str)
+    : label(str), wfn_(wfn), nelements(0), greater_than_or_equal(false), greater_than(false), ntuples(0) {
+    nirreps = wfn_->nirrep();
     init();
 }
 
-CCIndex::~CCIndex() { }
+CCIndex::~CCIndex() {}
 
 void CCIndex::init() {
     // New orbital spaces must be added here
@@ -71,21 +63,21 @@ void CCIndex::init() {
     // Get the orbital spaces data pointers
     for (size_t i = 0; i < label.size(); ++i) {
         if (label[i] == 'o') {
-            mospi.push_back(moinfo->get_occ());
-            indices_to_pitzer.push_back(moinfo->get_occ_to_mo());
+            mospi.push_back(wfn_->moinfo()->get_occ());
+            indices_to_pitzer.push_back(wfn_->moinfo()->get_occ_to_mo());
         } else if (label[i] == 'v') {
-            mospi.push_back(moinfo->get_vir());
-            indices_to_pitzer.push_back(moinfo->get_vir_to_mo());
+            mospi.push_back(wfn_->moinfo()->get_vir());
+            indices_to_pitzer.push_back(wfn_->moinfo()->get_vir_to_mo());
         } else if (label[i] == 'a') {
-            mospi.push_back(moinfo->get_actv());
-            indices_to_pitzer.push_back(moinfo->get_actv_to_mo());
+            mospi.push_back(wfn_->moinfo()->get_actv());
+            indices_to_pitzer.push_back(wfn_->moinfo()->get_actv_to_mo());
         } else if (label[i] == 'f') {
-            mospi.push_back(moinfo->get_fvir());
-            indices_to_pitzer.push_back(moinfo->get_fvir_to_mo());
+            mospi.push_back(wfn_->moinfo()->get_fvir());
+            indices_to_pitzer.push_back(wfn_->moinfo()->get_fvir_to_mo());
         } else if (label[i] == 's') {
-            mospi.push_back(moinfo->get_sopi());
+            mospi.push_back(wfn_->moinfo()->get_sopi());
         } else if (label[i] == 'n') {
-            mospi.push_back(moinfo->get_mopi());
+            mospi.push_back(wfn_->moinfo()->get_mopi());
         }
     }
     for (int i = 0; i < nelements; i++) {
@@ -133,7 +125,7 @@ void CCIndex::init() {
 }
 
 void CCIndex::make_zero_index() {
-    std::vector<std::vector<short> > pairs;  // The pairs ordered as a vector
+    std::vector<std::vector<short>> pairs;  // The pairs ordered as a vector
     ntuples = 0;
     for (int h = 0; h < nirreps; h++) {
         first.push_back(ntuples);
@@ -146,12 +138,12 @@ void CCIndex::make_zero_index() {
         tuplespi.push_back(last[h] - first[h]);
     }
     // Allocate the memory for the tuples and store them
-    tuples = std::vector<std::array<short, 3>> {{0, 0, 0}};
+    tuples = std::vector<std::array<short, 3>>{{0, 0, 0}};
 }
 
 void CCIndex::make_one_index() {
     // The pairs ordered as a vector
-    std::vector<std::vector<short> > pairs;
+    std::vector<std::vector<short>> pairs;
 
     // Allocate the 1->tuple mapping array and set them to -1
     one_index_to_tuple_rel_index = std::vector<size_t>(dimension[0], 0);
@@ -182,7 +174,7 @@ void CCIndex::make_one_index() {
 }
 
 void CCIndex::make_two_index() {
-    std::vector<std::vector<short> > pairs;  // The pairs ordered as a vector
+    std::vector<std::vector<short>> pairs;  // The pairs ordered as a vector
 
     // Allocate the 2->tuple mapping array and set them to -1
     two_index_to_tuple_rel_index = std::vector<std::vector<size_t>>(dimension[0], std::vector<size_t>(dimension[1], 0));
@@ -287,11 +279,13 @@ void CCIndex::make_three_index() {
         exit(1);
     }
 
-    std::vector<std::vector<short> > pairs;  // The pairs ordered as a vector
+    std::vector<std::vector<short>> pairs;  // The pairs ordered as a vector
 
     // Allocate the 3->tuple mapping array and set them to -1
-    three_index_to_tuple_rel_index = std::vector<std::vector<std::vector<size_t>>>(dimension[0], std::vector<std::vector<size_t>>(dimension[1], std::vector<size_t>(dimension[2], 0)));
-    three_index_to_irrep = std::vector<std::vector<std::vector<int>>>(dimension[0], std::vector<std::vector<int>>(dimension[1], std::vector<int>(dimension[2], -1)));
+    three_index_to_tuple_rel_index = std::vector<std::vector<std::vector<size_t>>>(
+        dimension[0], std::vector<std::vector<size_t>>(dimension[1], std::vector<size_t>(dimension[2], 0)));
+    three_index_to_irrep = std::vector<std::vector<std::vector<int>>>(
+        dimension[0], std::vector<std::vector<int>>(dimension[1], std::vector<int>(dimension[2], -1)));
 
     if (label[2] == '>' && label[4] == '>') {
         ntuples = 0;
@@ -376,7 +370,7 @@ void CCIndex::print() {
     outfile->Printf("\n---------------------------------");
     int index = 0;
     for (int h = 0; h < nirreps; h++) {
-        if (tuplespi[h] > 0) outfile->Printf("\n\t%s", moinfo->get_irr_labs(h).c_str());
+        if (tuplespi[h] > 0) outfile->Printf("\n\t%s", wfn_->moinfo()->get_irr_labs(h).c_str());
         for (size_t tuple = 0; tuple < tuplespi[h]; ++tuple) {
             outfile->Printf("\n\t\t( ");
             for (int k = 0; k < nelements; k++) outfile->Printf("%d ", tuples[index][k]);

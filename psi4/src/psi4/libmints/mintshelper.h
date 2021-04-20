@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -89,6 +89,16 @@ class PSI_API MintsHelper {
 
     void common_init();
 
+    /**
+     * @brief Compute a one-body operator matrix.
+     * 
+     * This function takes in a vector of OneBodyAOInt objects and outputs a matrix
+     * representation of the one-body operator.
+     * 
+     * @param[in] ints Vector of OneBodyAOInt integrals
+     * @param[out] out Matrix containing the one-body operator
+     * @param[in] symm Use symmetry flag
+    */
     void one_body_ao_computer(std::vector<std::shared_ptr<OneBodyAOInt>> ints, SharedMatrix out, bool symm);
     void grad_two_center_computer(std::vector<std::shared_ptr<OneBodyAOInt>> ints, SharedMatrix D, SharedMatrix out);
     /// Helper function to convert ao integrals to so and cache them
@@ -151,6 +161,7 @@ class PSI_API MintsHelper {
     std::shared_ptr<IntegralFactory> integral() const;
 
     /// Getters and setters for other basis sets
+    std::map<std::string, std::shared_ptr<BasisSet>> basissets() const {return basissets_; };
     std::shared_ptr<BasisSet> get_basisset(std::string label);
     void set_basisset(std::string label, std::shared_ptr<BasisSet> basis);
     bool basisset_exists(std::string label);
@@ -201,6 +212,8 @@ class PSI_API MintsHelper {
                                             SharedMatrix C4);
     std::vector<SharedMatrix> mo_tei_deriv2(int atom1, int atom2, SharedMatrix C1, SharedMatrix C2, SharedMatrix C3,
                                             SharedMatrix C4);
+    std::vector<SharedMatrix> ao_metric_deriv1(int atom, const std::string& aux_name);
+    std::vector<SharedMatrix> ao_3center_deriv1(int atom, const std::string& aux_name);
 
     /// AO ERF Integrals
     SharedMatrix ao_erf_eri(double omega, std::shared_ptr<IntegralFactory> = nullptr);
@@ -331,6 +344,10 @@ class PSI_API MintsHelper {
 
     // Computes all "core" gradient terms T + V + perturb
     SharedMatrix core_hamiltonian_grad(SharedMatrix D);
+    // Computes the metric derivative gradient terms for DF methods
+    // Uses a vector of "densities" for methods that decompose the "densities"
+    std::map<std::string, SharedMatrix> metric_grad(std::map<std::string, SharedMatrix>& D, const std::string& aux_name);
+    SharedMatrix three_idx_grad(const std::string& aux_name, const std::string& intermed_name, const std::string& gradient_name);
 
     SharedMatrix kinetic_grad(SharedMatrix D);
     SharedMatrix potential_grad(SharedMatrix D);

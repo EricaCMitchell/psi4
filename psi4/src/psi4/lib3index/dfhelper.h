@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -115,7 +115,7 @@ class PSI_API DFHelper {
     double get_schwarz_cutoff() { return cutoff_; }
 
     /// fitting metric power (defaults to -0.5) to use in
-	/// K_{m n} = C_{l a}(m l|Q)(Q|R)^{-1/2}(R|P)^{-1/2}(P|n s)C_{s a}
+    /// K_{m n} = C_{l a}(m l|Q)(Q|R)^{-1/2}(R|P)^{-1/2}(P|n s)C_{s a}
     void set_metric_pow(double m_pow) { mpower_ = m_pow; }
     double get_metric_pow() { return mpower_; }
 
@@ -139,6 +139,14 @@ class PSI_API DFHelper {
     void set_fitting_condition(double condition) { condition_ = condition; }
     bool get_fitting_condition() { return condition_; }
 
+
+    ///
+    /// Do we calculate omega exchange and regular hf exchange together?
+    /// @param wcombine boolean: all exchange in one matrix
+    ///
+    void set_wcombine(bool wcombine) {wcombine_ = wcombine;}
+    bool get_wcombine() { return wcombine_; }
+
     ///
     /// Lets me know whether to compute those other type of integrals
     /// @param do_wK boolean indicating to compute other integrals
@@ -151,7 +159,21 @@ class PSI_API DFHelper {
     /// @param omega double indicating parameter for other type
     ///
     void set_omega(double omega) { omega_ = omega; }
-    size_t get_omega() { return omega_; }
+    double get_omega() { return omega_; }
+
+    ///
+    /// sets the coefficient for (pq|rs) integrals
+    /// @param omega double indicating coefficient for eri
+    ///
+    void set_omega_alpha(double alpha) { omega_alpha_ = alpha; }
+    double get_omega_alpha() { return omega_alpha_; }
+    
+    ///
+    /// sets the parameter for the other type of integrals
+    /// @param omega double indicating parameter for other type
+    ///
+    void set_omega_beta(double beta) { omega_beta_ = beta; }
+    double get_omega_beta() { return omega_beta_; }
 
     ///
     /// set the printing verbosity parameter
@@ -269,6 +291,9 @@ class PSI_API DFHelper {
     /// clear spaces
     void clear_spaces();
 
+    /// clear transformations
+    void clear_transformations(); 
+
     /// clears spaces and transformations
     void clear_all();
 
@@ -312,7 +337,10 @@ class PSI_API DFHelper {
     std::pair<size_t, size_t> info_;
     bool ordered_ = false;
     bool do_wK_ = false;
+    bool wcombine_ = false;
     double omega_;
+    double omega_alpha_;
+    double omega_beta_;
     bool debug_ = false;
     bool sparsity_prepared_ = false;
     int print_lvl_ = 1;
@@ -337,6 +365,12 @@ class PSI_API DFHelper {
                                        std::vector<std::shared_ptr<TwoBodyAOInt>> eri);
     void compute_sparse_pQq_blocking_p_symm(const size_t start, const size_t stop, double* Mp,
                                             std::vector<std::shared_ptr<TwoBodyAOInt>> eri);
+    void compute_sparse_pQq_blocking_p_symm_abw(const size_t start, const size_t stop, double* just_Mp, double* param_Mp,
+                                        std::vector<std::shared_ptr<TwoBodyAOInt>> eri,
+                                        std::vector<std::shared_ptr<TwoBodyAOInt>> weri);
+
+
+
     void contract_metric_AO_core_symm(double* Qpq, double* Ppq, double* metp, size_t begin, size_t end);
     void grab_AO(const size_t start, const size_t stop, double* Mp);
 
@@ -474,6 +508,7 @@ class PSI_API DFHelper {
                    std::vector<std::vector<double>>& D_buffers, size_t bcount, size_t block_size);
     void compute_J_symm(std::vector<SharedMatrix> D, std::vector<SharedMatrix> J, double* Mp, double* T1p, double* T2p,
                         std::vector<std::vector<double>>& D_buffers, size_t bcount, size_t block_size);
+    void compute_J_combined(std::vector<SharedMatrix> D, std::vector<SharedMatrix> J, double* Mp, double* T1p, double* T2p, std::vector<std::vector<double>>& D_buffers, size_t bcount, size_t block_size);
     void compute_K(std::vector<SharedMatrix> Cleft, std::vector<SharedMatrix> Cright, std::vector<SharedMatrix> K,
                    double* Tp, double* Jtmp, double* Mp, size_t bcount, size_t block_size,
                    std::vector<std::vector<double>>& C_buffers, bool lr_symmetric);

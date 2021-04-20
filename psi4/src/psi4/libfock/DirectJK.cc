@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -33,30 +33,49 @@
 #include "psi4/libqt/qt.h"
 #include "psi4/psi4-dec.h"
 #include "psi4/psifiles.h"
-#include "psi4/libmints/sieve.h"
 #include "psi4/libiwl/iwl.hpp"
 #include "jk.h"
-//#include "jk_independent.h"
-//#include "link.h"
-//#include "direct_screening.h"
-//#include "cubature.h"
-//#include "points.h"
 #include "psi4/libmints/matrix.h"
 #include "psi4/libmints/basisset.h"
+#include "psi4/libmints/molecule.h"
 #include "psi4/libmints/twobody.h"
 #include "psi4/libmints/integral.h"
 #include "psi4/lib3index/cholesky.h"
+#include "psi4/libpsi4util/process.h"
+#include "psi4/liboptions/liboptions.h"
 
+#include <algorithm>
+#include <limits>
 #include <sstream>
+#include <set>
 #include "psi4/libpsi4util/PsiOutStream.h"
 #ifdef _OPENMP
 #include <omp.h>
 #include "psi4/libpsi4util/process.h"
 #endif
 
+#ifdef USING_BrianQC
+
+#include <use_brian_wrapper.h>
+#include <brian_macros.h>
+#include <brian_common.h>
+#include <brian_scf.h>
+#include <brian_cphf.h>
+
+extern void checkBrian();
+extern BrianCookie brianCookie;
+extern bool brianEnable;
+extern bool brianEnableDFT;
+extern bool brianCPHFFlag;
+extern bool brianCPHFLeftSideFlag;
+extern brianInt brianRestrictionType;
+
+#endif
+
 using namespace psi;
 
 namespace psi {
+
 DirectJK::DirectJK(std::shared_ptr<BasisSet> primary) : JK(primary) { common_init(); }
 DirectJK::~DirectJK() {}
 void DirectJK::common_init() {
@@ -66,7 +85,7 @@ void DirectJK::common_init() {
 #endif
 }
 size_t DirectJK::memory_estimate() {
-    return 0; // Effectively
+    return 0;  // Effectively
 }
 void DirectJK::print_header() const {
     if (print_) {
@@ -81,12 +100,181 @@ void DirectJK::print_header() const {
         outfile->Printf("    Schwarz Cutoff:    %11.0E\n\n", cutoff_);
     }
 }
-void DirectJK::preiterations() { sieve_ = std::make_shared<ERISieve>(primary_, cutoff_, do_csam_); }
+void DirectJK::preiterations() {
+
+#ifdef USING_BrianQC
+    if (brianEnable) {
+        double threshold = cutoff_ * (brianCPHFFlag ? 1e-3 : 1e-0); // CPHF needs higher precision
+        brianCOMSetPrecisionThresholds(&brianCookie, &threshold);
+        checkBrian();
+    }
+#endif
+}
 void DirectJK::compute_JK() {
+#ifdef USING_BrianQC
+    if (brianEnable) {
+        brianBool computeCoulomb = (do_J_ ? BRIAN_TRUE : BRIAN_FALSE);
+        brianBool computeExchange = ((do_K_ || do_wK_) ? BRIAN_TRUE : BRIAN_FALSE);
+
+        if (do_wK_ and not brianEnableDFT) {
+            throw PSIEXCEPTION("Currently, BrianQC cannot compute range-separated exact exchange when Psi4 is handling the DFT terms");
+        }
+
+        if (not brianCPHFFlag) {
+            if (!lr_symmetric_) {
+                throw PSIEXCEPTION("Currently, BrianQC's non-CPHF Fock building only works with symmetric densities");
+            }
+
+            // BrianQC only computes the sum of all Coulomb contributions.
+            // For ROHF, the matrices are not the alpha and beta densities, but
+            // the doubly and singly occupied densities, and the weight of
+            // the first Coulomb contribution must be two. Currently, we
+            // achieve this by scaling the doubly occupied density
+            // before building, and doing the reverse for the results.
+            // We also restore the original density in case it is still needed.
+            if (brianRestrictionType == BRIAN_RESTRICTION_TYPE_ROHF) {
+                D_ao_[0]->scale(2.0);
+            }
+
+            double* exchangeAlpha = nullptr;
+            double* exchangeBeta = nullptr;
+            if (do_K_) {
+                exchangeAlpha = K_ao_[0]->get_pointer();
+                exchangeBeta = (D_ao_.size() > 1) ? K_ao_[1]->get_pointer() : nullptr;
+            } else if (do_wK_) {
+                exchangeAlpha = wK_ao_[0]->get_pointer();
+                exchangeBeta = (D_ao_.size() > 1) ? wK_ao_[1]->get_pointer() : nullptr;
+            }
+
+            brianSCFBuildFockRepulsion(&brianCookie,
+                &computeCoulomb,
+                &computeExchange,
+                D_ao_[0]->get_pointer(0),
+                (D_ao_.size() > 1 ? D_ao_[1]->get_pointer() : nullptr),
+                (do_J_ ? J_ao_[0]->get_pointer() : nullptr),
+                exchangeAlpha,
+                exchangeBeta
+            );
+            checkBrian();
+
+            // BrianQC computes the sum of all Coulomb contributions into
+            // J_ao_[0], so all other contributions must be zeroed out for
+            // the sum to be correct. For RHF/RKS, Psi4 expects J_ao_[0]
+            // to contain the alpha contribution instead of the total, so
+            // we halve it.
+            if (do_J_) {
+                if (brianRestrictionType == BRIAN_RESTRICTION_TYPE_RHF) {
+                    J_ao_[0]->scale(0.5);
+                }
+
+                for (size_t ind = 1; ind < J_ao_.size(); ind++) {
+                    J_ao_[ind]->zero();
+                }
+            }
+
+            if (brianRestrictionType == BRIAN_RESTRICTION_TYPE_ROHF) {
+                D_ao_[0]->scale(0.5);
+
+                if (do_J_) {
+                    J_ao_[0]->scale(0.5);
+                }
+
+                if (do_K_) {
+                    K_ao_[0]->scale(0.5);
+                }
+
+                if (do_wK_) {
+                    wK_ao_[0]->scale(0.5);
+                }
+            }
+        } else {
+            brianInt maxSegmentSize;
+            brianCPHFMaxSegmentSize(&brianCookie, &maxSegmentSize);
+
+            brianInt densityCount = (brianRestrictionType == BRIAN_RESTRICTION_TYPE_RHF) ? 1 : 2;
+            if (D_ao_.size() % densityCount != 0) {
+                throw PSIEXCEPTION("Invalid number of density matrices for CPHF");
+            }
+
+            brianInt derivativeCount = D_ao_.size() / densityCount;
+
+            for (brianInt segmentStartIndex = 0; segmentStartIndex < derivativeCount; segmentStartIndex += maxSegmentSize) {
+                brianInt segmentSize = std::min(maxSegmentSize, derivativeCount - segmentStartIndex);
+
+                std::vector<std::vector<std::shared_ptr<Matrix>>> pseudoDensitySymmetrized(densityCount);
+                std::vector<std::vector<const double*>> pseudoDensityPointers(densityCount);
+                std::vector<std::vector<double*>> pseudoExchangePointers(densityCount);
+                for (brianInt densityIndex = 0; densityIndex < densityCount; densityIndex++) {
+                    pseudoDensitySymmetrized[densityIndex].resize(segmentSize);
+                    pseudoDensityPointers[densityIndex].resize(segmentSize, nullptr);
+                    pseudoExchangePointers[densityIndex].resize(segmentSize, nullptr);
+                    for (brianInt i = 0; i < segmentSize; i++) {
+                        // Psi4's code computing the left- and right-hand side CPHF terms use different indexing conventions
+                        brianInt psi4Index = brianCPHFLeftSideFlag ? (densityIndex * derivativeCount + segmentStartIndex + i) : ((segmentStartIndex + i) * densityCount + densityIndex);
+
+                        pseudoDensitySymmetrized[densityIndex][i] = D_ao_[psi4Index]->clone();
+                        pseudoDensitySymmetrized[densityIndex][i]->add(D_ao_[psi4Index]->transpose());
+                        pseudoDensitySymmetrized[densityIndex][i]->scale(0.5);
+                        pseudoDensityPointers[densityIndex][i] = pseudoDensitySymmetrized[densityIndex][i]->get_pointer();
+
+                        if (do_K_) {
+                            pseudoExchangePointers[densityIndex][i] = K_ao_[psi4Index]->get_pointer();
+                        } else if (do_wK_) {
+                            pseudoExchangePointers[densityIndex][i] = wK_ao_[psi4Index]->get_pointer();
+                        }
+                    }
+                }
+
+                std::vector<double*> pseudoCoulombPointers(segmentSize, nullptr);
+                for (brianInt i = 0; i < segmentSize; i++) {
+                    if (do_J_) {
+                        // we always write the total coulomb into the densityIndex == 0 matrix, and later divide it if necessary
+                        brianInt psi4Index = brianCPHFLeftSideFlag ? (0 * derivativeCount + segmentStartIndex + i) : ((segmentStartIndex + i) * densityCount + 0);
+                        pseudoCoulombPointers[i] = J_ao_[psi4Index]->get_pointer();
+                    }
+                }
+
+                brianCPHFBuildRepulsion(&brianCookie,
+                    &computeCoulomb,
+                    &computeExchange,
+                    &segmentSize,
+                    pseudoDensityPointers[0].data(),
+                    (densityCount > 1) ? pseudoDensityPointers[1].data() : nullptr,
+                    pseudoCoulombPointers.data(),
+                    pseudoExchangePointers[0].data(),
+                    (densityCount > 1) ? pseudoExchangePointers[1].data() : nullptr
+                );
+                checkBrian();
+
+                // BrianQC computes the sum of all Coulomb contributions into
+                // J_ao_[0], so all other contributions must be zeroed out for
+                // the sum to be correct. For RHF/RKS, Psi4 expects J_ao_[0]
+                // to contain the alpha contribution instead of the total, so
+                // we halve it.
+                if (do_J_) {
+                    for (brianInt i = 0; i < segmentSize; i++) {
+                        if (brianRestrictionType == BRIAN_RESTRICTION_TYPE_RHF) {
+                            brianInt psi4Index = brianCPHFLeftSideFlag ? (0 * derivativeCount + segmentStartIndex + i) : ((segmentStartIndex + i) * densityCount + 0);
+                            J_ao_[psi4Index]->scale(0.5);
+                        }
+
+                        for (brianInt densityIndex = 1; densityIndex < densityCount; densityIndex++) {
+                            brianInt psi4Index = brianCPHFLeftSideFlag ? (densityIndex * derivativeCount + segmentStartIndex + i) : ((segmentStartIndex + i) * densityCount + densityIndex);
+                            J_ao_[psi4Index]->zero();
+                        }
+                    }
+                }
+            }
+        }
+
+        return;
+    }
+#endif
+
     auto factory = std::make_shared<IntegralFactory>(primary_, primary_, primary_, primary_);
 
     if (do_wK_) {
-        std::vector<std::shared_ptr<TwoBodyAOInt> > ints;
+        std::vector<std::shared_ptr<TwoBodyAOInt>> ints;
         for (int thread = 0; thread < df_ints_num_threads_; thread++) {
             ints.push_back(std::shared_ptr<TwoBodyAOInt>(factory->erf_eri(omega_)));
         }
@@ -94,7 +282,7 @@ void DirectJK::compute_JK() {
         if (do_J_) {
             build_JK(ints, D_ao_, J_ao_, wK_ao_);
         } else {
-            std::vector<std::shared_ptr<Matrix> > temp;
+            std::vector<std::shared_ptr<Matrix>> temp;
             for (size_t i = 0; i < D_ao_.size(); i++) {
                 temp.push_back(std::make_shared<Matrix>("temp", primary_->nbf(), primary_->nbf()));
             }
@@ -103,24 +291,21 @@ void DirectJK::compute_JK() {
     }
 
     if (do_J_ || do_K_) {
-        std::vector<std::shared_ptr<TwoBodyAOInt> > ints;
+        std::vector<std::shared_ptr<TwoBodyAOInt>> ints;
         ints.push_back(std::shared_ptr<TwoBodyAOInt>(factory->eri()));
         for (int thread = 1; thread < df_ints_num_threads_; thread++) {
-            if (ints[0]->cloneable())
-                ints.push_back(std::shared_ptr<TwoBodyAOInt>(ints[0]->clone()));
-            else
-                ints.push_back(std::shared_ptr<TwoBodyAOInt>(factory->eri()));
+            ints.push_back(std::shared_ptr<TwoBodyAOInt>(ints[0]->clone()));
         }
         if (do_J_ && do_K_) {
             build_JK(ints, D_ao_, J_ao_, K_ao_);
         } else if (do_J_) {
-            std::vector<std::shared_ptr<Matrix> > temp;
+            std::vector<std::shared_ptr<Matrix>> temp;
             for (size_t i = 0; i < D_ao_.size(); i++) {
                 temp.push_back(std::make_shared<Matrix>("temp", primary_->nbf(), primary_->nbf()));
             }
             build_JK(ints, D_ao_, J_ao_, temp);
         } else {
-            std::vector<std::shared_ptr<Matrix> > temp;
+            std::vector<std::shared_ptr<Matrix>> temp;
             for (size_t i = 0; i < D_ao_.size(); i++) {
                 temp.push_back(std::make_shared<Matrix>("temp", primary_->nbf(), primary_->nbf()));
             }
@@ -128,18 +313,17 @@ void DirectJK::compute_JK() {
         }
     }
 }
-void DirectJK::postiterations() { sieve_.reset(); }
-void DirectJK::build_JK(std::vector<std::shared_ptr<TwoBodyAOInt> >& ints, std::vector<std::shared_ptr<Matrix> >& D,
-                        std::vector<std::shared_ptr<Matrix> >& J, std::vector<std::shared_ptr<Matrix> >& K) {
-    // => Zeroing <= //
+void DirectJK::postiterations() {}
 
+void DirectJK::build_JK(std::vector<std::shared_ptr<TwoBodyAOInt>>& ints, std::vector<std::shared_ptr<Matrix>>& D,
+                        std::vector<std::shared_ptr<Matrix>>& J, std::vector<std::shared_ptr<Matrix>>& K) {
+    // => Zeroing <= //
     for (size_t ind = 0; ind < J.size(); ind++) {
         J[ind]->zero();
     }
     for (size_t ind = 0; ind < K.size(); ind++) {
         K[ind]->zero();
     }
-
     // => Sizing <= //
 
     int nshell = primary_->nshell();
@@ -209,7 +393,7 @@ void DirectJK::build_JK(std::vector<std::shared_ptr<TwoBodyAOInt> >& ints, std::
                 for (int Q2 = task_starts[Qtask]; Q2 < task_starts[Qtask + 1]; Q2++) {
                     int P = task_shells[P2];
                     int Q = task_shells[Q2];
-                    if (sieve_->shell_pair_significant(P, Q)) {
+                    if (ints[0]->shell_pair_significant(P, Q)) {
                         found = true;
                         task_pairs.push_back(std::pair<int, int>(Ptask, Qtask));
                         break;
@@ -286,15 +470,15 @@ void DirectJK::build_JK(std::vector<std::shared_ptr<TwoBodyAOInt> >& ints, std::
                 if (Q2 > P2) continue;
                 int P = task_shells[P2];
                 int Q = task_shells[Q2];
-                if (!sieve_->shell_pair_significant(P, Q)) continue;
+                if (!ints[0]->shell_pair_significant(P, Q)) continue;
                 for (int R2 = R2start; R2 < R2start + nRtask; R2++) {
                     for (int S2 = S2start; S2 < S2start + nStask; S2++) {
                         if (S2 > R2) continue;
                         int R = task_shells[R2];
                         int S = task_shells[S2];
                         if (R2 * nshell + S2 > P2 * nshell + Q2) continue;
-                        if (!sieve_->shell_pair_significant(R, S)) continue;
-                        if (!sieve_->shell_significant(P, Q, R, S)) continue;
+                        if (!ints[0]->shell_pair_significant(R, S)) continue;
+                        if (!ints[0]->shell_significant(P, Q, R, S)) continue;
 
                         // printf("Quartet: %2d %2d %2d %2d\n", P, Q, R, S);
 
@@ -598,175 +782,4 @@ void DirectJK::build_JK(std::vector<std::shared_ptr<TwoBodyAOInt> >& ints, std::
     }
 }
 
-#if 0
-
-
-
-DirectJK::DirectJK(std::shared_ptr<BasisSet> primary) :
-   JK(primary)
-{
-    common_init();
-}
-DirectJK::~DirectJK()
-{
-}
-void DirectJK::common_init()
-{
-}
-void DirectJK::print_header() const
-{
-    if (print_) {
-        outfile->Printf( "  ==> DirectJK: Integral-Direct J/K Matrices <==\n\n");
-
-        outfile->Printf( "    J tasked:          %11s\n", (do_J_ ? "Yes" : "No"));
-        outfile->Printf( "    K tasked:          %11s\n", (do_K_ ? "Yes" : "No"));
-        outfile->Printf( "    wK tasked:         %11s\n", (do_wK_ ? "Yes" : "No"));
-        if (do_wK_)
-            outfile->Printf( "    Omega:             %11.3E\n", omega_);
-        outfile->Printf( "    OpenMP threads:    %11d\n", omp_nthread_);
-        outfile->Printf( "    Memory [MiB]:      %11ld\n", (memory_ *8L) / (1024L * 1024L));
-        outfile->Printf( "    Schwarz Cutoff:    %11.0E\n\n", cutoff_);
-    }
-}
-void DirectJK::preiterations()
-{
-    sieve_ = std::make_shared<ERISieve>(primary_, cutoff_);
-    factory_= std::make_shared<IntegralFactory>(primary_,primary_,primary_,primary_);
-    eri_.clear();
-    for (int thread = 0; thread < omp_nthread_; thread++) {
-        eri_.push_back(std::shared_ptr<TwoBodyAOInt>(factory_->erd_eri()));
-    }
-}
-void DirectJK::compute_JK()
-{
-    // Correctness always counts
-    const double* buffer = eri_[0]->buffer();
-    for (int M = 0; M < primary_->nshell(); ++M) {
-    for (int N = 0; N < primary_->nshell(); ++N) {
-    for (int R = 0; R < primary_->nshell(); ++R) {
-    for (int S = 0; S < primary_->nshell(); ++S) {
-
-        if(eri_[0]->compute_shell(M,N,R,S) == 0)
-            continue; // No integrals were computed here
-
-        int nM = primary_->shell(M).nfunction();
-        int nN = primary_->shell(N).nfunction();
-        int nR = primary_->shell(R).nfunction();
-        int nS = primary_->shell(S).nfunction();
-
-        int sM = primary_->shell(M).function_index();
-        int sN = primary_->shell(N).function_index();
-        int sR = primary_->shell(R).function_index();
-        int sS = primary_->shell(S).function_index();
-
-        for (int oM = 0, index = 0; oM < nM; oM++) {
-        for (int oN = 0; oN < nN; oN++) {
-        for (int oR = 0; oR < nR; oR++) {
-        for (int oS = 0; oS < nS; oS++, index++) {
-
-            double val = buffer[index];
-
-            int m = oM + sM;
-            int n = oN + sN;
-            int r = oR + sR;
-            int s = oS + sS;
-
-            if (do_J_) {
-                for (int N = 0; N < J_ao_.size(); N++) {
-                    J_ao_[N]->add(0,m,n, D_ao_[N]->get(0,r,s)*val);
-                }
-            }
-
-            if (do_K_) {
-                for (int N = 0; N < K_ao_.size(); N++) {
-                    K_ao_[N]->add(0,m,s, D_ao_[N]->get(0,n,r)*val);
-                }
-            }
-
-        }}}}
-
-    }}}}
-
-    // Faster version, not finished
-    /**
-    sieve_->set_sieve(cutoff_);
-    const std::vector<std::pair<int,int> >& shell_pairs = sieve_->shell_pairs();
-    size_t nMN = shell_pairs.size();
-    size_t nMNRS = nMN * nMN;
-    int nthread = eri_.size();
-
-    #pragma omp parallel for schedule(dynamic,30) num_threads(nthread)
-    for (size_t index = 0L; index < nMNRS; ++index) {
-
-        int thread = 0;
-        #ifdef _OPENMP
-            thread = omp_get_thread_num();
-        #endif
-
-        const double* buffer = eri_[thread]->buffer();
-
-        size_t MN = index / nMN;
-        size_t RS = index % nMN;
-        if (MN < RS) continue;
-
-        int M = shell_pairs[MN].first;
-        int N = shell_pairs[MN].second;
-        int R = shell_pairs[RS].first;
-        int S = shell_pairs[RS].second;
-
-        eri_[thread]->compute_shell(M,N,R,S);
-
-        int nM = primary_->shell(M)->nfunction();
-        int nN = primary_->shell(N)->nfunction();
-        int nR = primary_->shell(R)->nfunction();
-        int nS = primary_->shell(S)->nfunction();
-
-        int sM = primary_->shell(M)->function_index();
-        int sN = primary_->shell(N)->function_index();
-        int sR = primary_->shell(R)->function_index();
-        int sS = primary_->shell(S)->function_index();
-
-        for (int oM = 0, index = 0; oM < nM; oM++) {
-        for (int oN = 0; oN < nN; oN++) {
-        for (int oR = 0; oR < nR; oR++) {
-        for (int oS = 0; oS < nS; oS++, index++) {
-
-            int m = oM + sM;
-            int n = oN + sN;
-            int r = oR + sR;
-            int s = oS + sS;
-
-            if ((n > m) || (s > r) || ((r*(r+1) >> 1) + s > (m*(m+1) >> 1) + n)) continue;
-
-            double val = buffer[index];
-
-            if (do_J_) {
-                for (int N = 0; N < J_ao_.size(); N++) {
-                    double** Dp = D_ao_[N]->pointer();
-                    double** Jp = J_ao_[N]->pointer();
-
-                    // I've given you all the unique ones
-                    // Make sure to use #pragma omp atomic
-                    // TODO
-                }
-            }
-
-            if (do_K_) {
-                for (int N = 0; N < K_ao_.size(); N++) {
-                    double** Dp = D_ao_[N]->pointer();
-                    double** Kp = J_ao_[N]->pointer();
-
-                    // I've given you all the unique ones
-                    // Make sure to use #pragma omp atomic
-                    // TODO
-                }
-            }
-
-        }}}}
-
-    }
-    **/
-}
-
-#endif
-}
+}  // namespace psi

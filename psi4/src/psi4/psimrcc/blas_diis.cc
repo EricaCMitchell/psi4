@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -48,14 +48,13 @@ PRAGMA_WARNING_POP
 namespace psi {
 
 namespace psimrcc {
-extern MOInfo* moinfo;
 
 std::vector<std::pair<std::string, std::string> > diis_matrices;
 const double diis_singular_tollerance = 1.0e-12;
 
 void CCBLAS::diis_add(std::string amps, std::string delta_amps) {
-    std::vector<std::string> amps_names = moinfo->get_matrix_names(amps);
-    std::vector<std::string> delta_amps_names = moinfo->get_matrix_names(delta_amps);
+    std::vector<std::string> amps_names = wfn_->moinfo()->get_matrix_names(amps);
+    std::vector<std::string> delta_amps_names = wfn_->moinfo()->get_matrix_names(delta_amps);
     for (size_t n = 0; n < amps_names.size(); n++) {
         diis_matrices.push_back(make_pair(amps_names[n], delta_amps_names[n]));
     }
@@ -66,7 +65,7 @@ void CCBLAS::diis_save_t_amps(int cycle) {
         int diis_step = cycle % options_.get_int("DIIS_MAX_VECS");
         for (std::vector<std::pair<std::string, std::string> >::iterator it = diis_matrices.begin();
              it != diis_matrices.end(); ++it) {
-            for (int h = 0; h < moinfo->get_nirreps(); h++) {
+            for (int h = 0; h < wfn_->moinfo()->get_nirreps(); h++) {
                 CCMatIrTmp Amps = get_MatIrTmp(it->first, h, none);
                 double** matrix = Amps->get_matrix()[h];
                 size_t block_sizepi = Amps->get_block_sizepi(h);
@@ -88,7 +87,7 @@ void CCBLAS::diis(int cycle, double delta, DiisType diis_type) {
         for (std::vector<std::pair<std::string, std::string> >::iterator it = diis_matrices.begin();
              it != diis_matrices.end(); ++it) {
             if (it->second.find("t3_delta") == std::string::npos) {
-                for (int h = 0; h < moinfo->get_nirreps(); h++) {
+                for (int h = 0; h < wfn_->moinfo()->get_nirreps(); h++) {
                     CCMatIrTmp DeltaAmps = get_MatIrTmp(it->second, h, none);
                     double** matrix = DeltaAmps->get_matrix()[h];
                     size_t block_sizepi = DeltaAmps->get_block_sizepi(h);
@@ -129,7 +128,7 @@ void CCBLAS::diis(int cycle, double delta, DiisType diis_type) {
                 diis_A[options_.get_int("DIIS_MAX_VECS")] = -1.0;
 
                 // Build B
-                for (int h = 0; h < moinfo->get_nirreps(); h++) {
+                for (int h = 0; h < wfn_->moinfo()->get_nirreps(); h++) {
                     CCMatIrTmp Amps = get_MatIrTmp(it->first, h, none);
                     size_t block_sizepi = Amps->get_block_sizepi(h);
                     if (block_sizepi > 0) {
@@ -141,7 +140,8 @@ void CCBLAS::diis(int cycle, double delta, DiisType diis_type) {
                             // Load vector i irrep h
                             char i_data_label[80];
                             sprintf(i_data_label, "%s_%s_%d_%d", (it->second).c_str(), "DIIS", h, i);
-                            _default_psio_lib_->read_entry(PSIF_PSIMRCC_INTEGRALS, i_data_label, reinterpret_cast<char*>(i_matrix.data()),
+                            _default_psio_lib_->read_entry(PSIF_PSIMRCC_INTEGRALS, i_data_label,
+                                                           reinterpret_cast<char*>(i_matrix.data()),
                                                            block_sizepi * sizeof(double));
 
                             for (int j = i; j < options_.get_int("DIIS_MAX_VECS"); j++) {
@@ -149,7 +149,8 @@ void CCBLAS::diis(int cycle, double delta, DiisType diis_type) {
                                 char j_data_label[80];
                                 sprintf(j_data_label, "%s_%s_%d_%d", (it->second).c_str(), "DIIS", h, j);
                                 _default_psio_lib_->read_entry(PSIF_PSIMRCC_INTEGRALS, j_data_label,
-                                                               reinterpret_cast<char*>(j_matrix.data()), block_sizepi * sizeof(double));
+                                                               reinterpret_cast<char*>(j_matrix.data()),
+                                                               block_sizepi * sizeof(double));
 
                                 int dx = 1;
                                 int length = block_sizepi;
@@ -174,7 +175,7 @@ void CCBLAS::diis(int cycle, double delta, DiisType diis_type) {
 
                 // Update T = sum t(i) * A(i);
                 if (!info) {
-                    for (int h = 0; h < moinfo->get_nirreps(); h++) {
+                    for (int h = 0; h < wfn_->moinfo()->get_nirreps(); h++) {
                         CCMatIrTmp Amps = get_MatIrTmp(it->first, h, none);
                         size_t block_sizepi = Amps->get_block_sizepi(h);
                         if (block_sizepi > 0) {
@@ -186,7 +187,8 @@ void CCBLAS::diis(int cycle, double delta, DiisType diis_type) {
                                 char i_data_label[80];
                                 sprintf(i_data_label, "%s_%s_%d_%d", (it->first).c_str(), "DIIS", h, i);
                                 _default_psio_lib_->read_entry(PSIF_PSIMRCC_INTEGRALS, i_data_label,
-                                                               reinterpret_cast<char*>(i_matrix.data()), block_sizepi * sizeof(double));
+                                                               reinterpret_cast<char*>(i_matrix.data()),
+                                                               block_sizepi * sizeof(double));
                                 for (size_t n = 0; n < block_sizepi; n++) {
                                     t_matrix[n] += diis_A[i] * i_matrix[n];
                                 }

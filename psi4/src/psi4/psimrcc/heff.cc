@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -39,9 +39,8 @@
 namespace psi {
 
 namespace psimrcc {
-extern MOInfo* moinfo;
 
-Hamiltonian::Hamiltonian() { startup(); }
+Hamiltonian::Hamiltonian(std::shared_ptr<PSIMRCCWfn> wfn) : wfn_(wfn) { startup(); }
 
 Hamiltonian::~Hamiltonian() { cleanup(); }
 
@@ -73,7 +72,7 @@ void Hamiltonian::print() {
     for (int i = 0; i < max_size_list; ++i) {
         outfile->Printf("\n  %11d   %9.6f    %9.6f  %s", eigenvector_index_pair[i].second,
                         right_eigenvector[eigenvector_index_pair[i].second], eigenvector_index_pair[i].first,
-                        moinfo->get_determinant_label(eigenvector_index_pair[i].second).c_str());
+                        wfn_->moinfo()->get_determinant_label(eigenvector_index_pair[i].second).c_str());
     }
 }
 

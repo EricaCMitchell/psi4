@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -42,6 +42,7 @@
 #include "psi4/libciomr/libciomr.h"
 #include "psi4/libdpd/dpd.h"
 #include "psi4/libqt/qt.h"
+#include "psi4/libmints/matrix.h"
 #include "psi4/libmints/wavefunction.h"
 #include "psi4/libpsio/psio.h"
 #include "psi4/libpsio/psio.hpp"
@@ -76,6 +77,11 @@ CCEnergyWavefunction::~CCEnergyWavefunction() {}
 void CCEnergyWavefunction::init() {
     shallow_copy(reference_wavefunction_);
     module_ = "ccenergy";
+    // shallow_copy leaves this wfn's Density as the same object as the ref's.
+    // Because ccdensity/ccdensity.cc needs to modify the object at that memory
+    // location, make this object's densities point to a different memory locationn
+    Da_ = reference_wavefunction_->Da()->clone();
+    Db_ = reference_wavefunction_->same_a_b_dens() ? Da_ : reference_wavefunction_->Db()->clone();
 }
 
 double CCEnergyWavefunction::compute_energy() {
@@ -308,12 +314,11 @@ double CCEnergyWavefunction::compute_energy() {
     if (!done) {
         outfile->Printf("     ** Wave function not converged to %2.1e ** \n", params_.convergence);
 
-        if (params_.aobasis != "NONE") dpd_close(1);
+        if (params_.aobasis != "NONE" || params_.df) dpd_close(1);
         dpd_close(0);
         cleanup();
-        timer_off("ccenergy");
         exit_io();
-        return Failure;
+        throw PSIEXCEPTION("Coupled Cluster wave function not converged.");
     }
 
     outfile->Printf("    SCF energy       (wfn)                    = %20.15f\n", moinfo_.escf);
@@ -475,7 +480,7 @@ double CCEnergyWavefunction::compute_energy() {
 
     if (params_.brueckner) Process::environment.globals["BRUECKNER CONVERGED"] = rotate();
 
-    if (params_.aobasis != "NONE") dpd_close(1);
+    if (params_.aobasis != "NONE" || params_.df) dpd_close(1);
     dpd_close(0);
 
     if (params_.ref == 2)

@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -35,7 +35,6 @@
 #include "psi4/libqt/qt.h"
 #include "psi4/psi4-dec.h"
 #include "psi4/psifiles.h"
-#include "psi4/libmints/sieve.h"
 #include "psi4/libiwl/iwl.hpp"
 #include "psi4/libmints/matrix.h"
 #include "psi4/libmints/basisset.h"
@@ -103,7 +102,9 @@ std::shared_ptr<JK> JK::build_JK(std::shared_ptr<BasisSet> primary, std::shared_
 
     } else if (jk_type == "MEM_DF") {
         MemDFJK* jk = new MemDFJK(primary, auxiliary);
+        jk->set_wcombine(true);
         _set_dfjk_options<MemDFJK>(jk, options);
+        if (options["WCOMBINE"].has_changed()) { jk->set_wcombine(options.get_bool("WCOMBINE")); }
 
         return std::shared_ptr<JK>(jk);
     } else if (jk_type == "PK") {
@@ -200,8 +201,11 @@ void JK::common_init() {
     do_J_ = true;
     do_K_ = true;
     do_wK_ = false;
+    wcombine_ = false;
     lr_symmetric_ = false;
     omega_ = 0.0;
+    omega_alpha_ = 1.0;
+    omega_beta_ = 0.0;
 
     std::shared_ptr<IntegralFactory> integral =
         std::make_shared<IntegralFactory>(primary_, primary_, primary_, primary_);
@@ -419,7 +423,9 @@ void JK::USO2AO() {
     }
     delete[] temp;
 
-    // Transform C_right
+    // Transform the left-index of all C matrices from SO basis to AO basis.
+
+    // Transform C_left. Assumed totally symmetric.
     for (size_t N = 0; N < D_.size(); ++N) {
         // Input is already C1
         if (!input_symmetry_cast_map_[N]) {
@@ -442,7 +448,7 @@ void JK::USO2AO() {
         }
     }
 
-    // Transform C_left
+    // Transform C_right. Not assumed totally symmetric.
     for (size_t N = 0; (N < D_.size()) && (!lr_symmetric_); ++N) {
         // Input is already C1
         if (!input_symmetry_cast_map_[N]) {
@@ -453,14 +459,17 @@ void JK::USO2AO() {
         int offset = 0;
         int symm = D_[N]->symmetry();
         for (int h = 0; h < AO2USO_->nirrep(); ++h) {
+            // We MUST pack columns in the order in which they appear for totally symmetric C_left.
+            // This means we transform in order of h ^ symm, not in order of h.
             int nao = AO2USO_->rowspi()[0];
-            int nso = AO2USO_->colspi()[h];
+            int nso = AO2USO_->colspi()[h ^ symm];
             int ncol = C_right_ao_[N]->colspi()[0];
-            int ncolspi = C_right_[N]->colspi()[h ^ symm];
+            // Remember: colspi_[h] describes not the orbitals of block h, but the orbitals that transform as h.
+            int ncolspi = C_right_[N]->colspi()[h];
             if (nso == 0 || ncolspi == 0) continue;
-            double** Up = AO2USO_->pointer(h);
+            double** Up = AO2USO_->pointer(h ^ symm);
             double** CAOp = C_right_ao_[N]->pointer();
-            double** CSOp = C_right_[N]->pointer(h);
+            double** CSOp = C_right_[N]->pointer(h ^ symm);
             C_DGEMM('N', 'N', nao, ncolspi, nso, 1.0, Up[0], nso, CSOp[0], ncolspi, 0.0, &CAOp[0][offset], ncol);
             offset += ncolspi;
         }
@@ -618,5 +627,11 @@ void JK::compute() {
         C_right_.clear();
     }
 }
-void JK::finalize() { postiterations(); }
+void JK::set_wcombine(bool wcombine) {
+    wcombine_ = wcombine;
+    if (wcombine) {
+        throw PSIEXCEPTION("To combine exchange terms, use MemDFJK\n");
+    }
 }
+void JK::finalize() { postiterations(); }
+}  // namespace psi

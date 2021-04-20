@@ -3,7 +3,7 @@
 .. #
 .. # Psi4: an open-source quantum chemistry software package
 .. #
-.. # Copyright (c) 2007-2019 The Psi4 Developers.
+.. # Copyright (c) 2007-2021 The Psi4 Developers.
 .. #
 .. # The copyrights for code used from other parties are included in
 .. # the corresponding files.
@@ -38,7 +38,7 @@ Interface to CPPE by M. Scheurer
 .. codeauthor:: Maximilian Scheurer
 .. sectionauthor:: Maximilian Scheurer
 
-*Module:* :ref:`Keywords <apdx:cppe>`, :ref:`PSI Variables <apdx:cppe_psivar>`
+*Module:* :ref:`Keywords <apdx:pe>`, :ref:`PSI Variables <apdx:pe_psivar>`
 
 .. image:: https://img.shields.io/badge/home-cppe-informational.svg
    :target: https://github.com/maxscheurer/cppe
@@ -78,8 +78,8 @@ Installation
   hint its location with :makevar:`cppe_DIR`,
   and rebuild |PSIfour| to detect CPPE and activate dependent code.
 
-* Previous bullet had details. To build |PSIfour| from source and use
-  cppe from conda without thinking, consult :ref:`sec:condapsi4dev`.
+.. * Previous bullet had details. To build |PSIfour| from source and use
+..   cppe from conda without thinking, consult.
 
 * To remove a conda installation, ``conda remove cppe``.
 
@@ -107,9 +107,11 @@ is achieved by setting |globals__pe| ``true`` in your input file.
           wavefunctions and CC wavefunctions in the PTE approximation [Cammi:2009:164104]_.
           All ERI algorithms (``PK``, ``OUT_OF_CORE``, ``DIRECT``, ``DF``, ``CD``) are supported.
 
+.. note:: linear response calculations (static polarisabilities, TD-SCF) are supported for RHF/UHF if available.
+
 .. warning:: The CPPE library **cannot** exploit molecular point group symmetry.
 
-.. .. warning:: Analytic gradients and Hessians **are not** available with PCM. Finite differences will be used
+.. .. warning:: Analytic gradients and Hessians **are not** available with PE. Finite differences will be used
 ..              regardless of the ``dertype`` passed to the ``optimize`` function.
 ..              See :srcsample:`pcmsolver/opt-fd` for a sample input.
 
@@ -161,13 +163,12 @@ The corresponding potential file `pna_6w.pot` can be downloaded
 `here <https://raw.githubusercontent.com/maxscheurer/cppe/master/tests/potfiles/pna_6w.pot>`_.
 
 Keywords for CPPE
-~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 .. include:: autodir_options_c/globals__pe.rst
 .. include:: autodir_options_c/pe__potfile.rst
 .. include:: autodir_options_c/pe__isotropic_pol.rst
-.. include:: autodir_options_c/pe__convergence_induced.rst
-.. include:: autodir_options_c/pe__diis.rst
+.. include:: autodir_options_c/pe__induced_convergence.rst
 .. include:: autodir_options_c/pe__maxiter.rst
 .. include:: autodir_options_c/pe__border.rst
 .. include:: autodir_options_c/pe__border_type.rst
@@ -181,7 +182,7 @@ Keywords for CPPE
 .. _`cmake:cppe`:
 
 How to configure CPPE for building Psi4
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Role and Dependencies**
 

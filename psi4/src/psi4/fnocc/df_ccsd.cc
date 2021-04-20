@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -525,18 +525,26 @@ double DFCoupledCluster::CheckEnergy() {
         tb = tempv;
     }
     double energy = 0.0;
-    for (long int a = 0; a < v; a++) {
-        for (long int b = 0; b < v; b++) {
-            for (long int i = 0; i < o; i++) {
-                for (long int j = 0; j < o; j++) {
+    auto pairs = std::make_shared<Matrix>(o, o);
+    double **pairsp = pairs->pointer();
+    for (long int i = 0; i < o; i++) {
+        for (long int j = 0; j < o; j++) {
+            pairsp[i][j] = 0;
+            for (long int a = 0; a < v; a++) {
+                for (long int b = 0; b < v; b++) {
                     long int ijab = a * v * o * o + b * o * o + i * o + j;
                     long int iajb = i * v * v * o + a * v * o + j * v + b;
                     long int jaib = j * v * v * o + a * v * o + i * v + b;
-                    energy += (2.0 * integrals[iajb] - integrals[jaib]) * (tb[ijab] + t1[a * o + i] * t1[b * o + j]);
+                    double energy_contribution = (2.0 * integrals[iajb] - integrals[jaib]) * (tb[ijab] + t1[a * o + i] * t1[b * o + j]);
+                    energy += energy_contribution;
+                    pairsp[i][j] += energy_contribution;
                 }
             }
         }
     }
+
+    set_array_variable("CCSD PAIR ENERGIES", pairs);
+
     return energy;
 }
 
@@ -638,7 +646,6 @@ void DFCoupledCluster::AllocateMemory() {
 
     outfile->Printf("  ==> Memory <==\n\n");
     outfile->Printf("        Total memory available:          %9.2lf mb\n", available_memory);
-    outfile->Printf("\n");
     outfile->Printf("        CCSD memory requirements:        %9.2lf mb\n",
                     df_memory + total_memory - size_of_t2 * t2_on_disk);
     outfile->Printf("            3-index integrals:           %9.2lf mb\n", df_memory);
@@ -647,16 +654,12 @@ void DFCoupledCluster::AllocateMemory() {
     if (options_.get_bool("COMPUTE_TRIPLES")) {
         int nthreads = Process::environment.get_n_threads();
         double mem_t = 8. * (2L * o * o * v * v + 1L * o * o * o * v + o * v + 3L * v * v * v * nthreads);
-        outfile->Printf("\n");
-        outfile->Printf("        (T) part (regular algorithm):    %9.2lf mb\n", mem_t / 1024. / 1024.);
-        if (mem_t > memory) {
-            outfile->Printf("        <<< warning! >>> switched to low-memory (t) algorithm\n\n");
-        }
         if (mem_t > memory || options_.get_bool("TRIPLES_LOW_MEMORY")) {
             isLowMemory = true;
             mem_t = 8. * (2L * o * o * v * v + o * o * o * v + o * v + 5L * o * o * o * nthreads);
-            outfile->Printf("        (T) part (low-memory alg.):      %9.2lf mb\n\n", mem_t / 1024. / 1024.);
         }
+        outfile->Printf("        (T) algorithm:                   %9.2lf mb (%s-memory)\n", mem_t / 1024. / 1024., isLowMemory ? "low" : "high");
+
     }
     outfile->Printf("\n");
     outfile->Printf("  ==> Input parameters <==\n\n");
@@ -717,10 +720,7 @@ void DFCoupledCluster::AllocateMemory() {
     Ca = reference_wavefunction_->Ca()->pointer();
 
     // one-electron integrals
-    //    auto mints = std::make_shared<MintsHelper>(basisset_, options_, 0);
-    auto mints = std::make_shared<MintsHelper>(reference_wavefunction_);
-    H = mints->so_kinetic();
-    H->add(mints->so_potential());
+    H = reference_wavefunction_->H()->clone();
 
     if (t2_on_disk) {
         auto psio = std::make_shared<PSIO>();

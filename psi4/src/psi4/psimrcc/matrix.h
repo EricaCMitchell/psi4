@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -34,9 +34,10 @@
  *  A multireference coupled cluster code
  ***************************************************************************/
 
-#include "psi4/libpsi4util/memory_manager.h"
 #include <vector>
 #include <string>
+
+#include "psimrcc_wfn.h"
 
 namespace psi {
 namespace psimrcc {
@@ -62,6 +63,9 @@ class CCMatrix {
     ///////////////////////////////////////////////////////////////////////////////
     // Class Interface
     ///////////////////////////////////////////////////////////////////////////////
+
+    const std::shared_ptr<PSIMRCCWfn> wfn() const { return wfn_; }
+
     // Functions for scalars
     void add_scalar(double val);
     void set_scalar(double val);
@@ -182,26 +186,27 @@ class CCMatrix {
     ///////////////////////////////////////////////////////////////////////////////
     // Class data
     ///////////////////////////////////////////////////////////////////////////////
-    std::string label;        // The matrix label
-    std::string index_label;  // The index label
-    int nirreps;              // The number of irreps
-    int reference;            // The reference zeroth-order wavefunction
-    std::vector<double**> matrix;         // Pointer to the allocated memory
-                              // matrix[irrep][left_pair][right_pair]
-    CCIndex* left;            // Pointer to the left indexing scheme
-    CCIndex* right;           // Pointer to the right indexing scheme
-    int symmetry;             // Symmetry of the indices
-    Size_tVec block_sizepi;   // Size of a subblock of matrix per irrep
-    Size_tVec left_pairpi;    // Left indexing tuples per irrep
-    Size_tVec right_pairpi;   // Right indexing tuple per irrep
-    bool integral;            // Is this a two electron integral?
-    bool chemist_notation;    // Is this a two electron integral in chemist notation?
-    bool antisymmetric;       // Is this an antisymmetric two electron integral?
-    bool fock;                // Is this a fock matrix?
-    size_t memory2;           // Memory required for storage in bytes
-    Size_tVec memorypi2;      // Memory required for storage in bytes
-    BoolVec out_of_core;      // Is this irrep stored on disk?
-    int naccess;              // How many times you have called get_matrix();
+    std::string label;                 // The matrix label
+    std::string index_label;           // The index label
+    int nirreps;                       // The number of irreps
+    int reference;                     // The reference zeroth-order wavefunction
+    std::vector<double**> matrix;      // Pointer to the allocated memory
+                                       // matrix[irrep][left_pair][right_pair]
+    CCIndex* left;                     // Pointer to the left indexing scheme
+    CCIndex* right;                    // Pointer to the right indexing scheme
+    int symmetry;                      // Symmetry of the indices
+    Size_tVec block_sizepi;            // Size of a subblock of matrix per irrep
+    Size_tVec left_pairpi;             // Left indexing tuples per irrep
+    Size_tVec right_pairpi;            // Right indexing tuple per irrep
+    bool integral;                     // Is this a two electron integral?
+    bool chemist_notation;             // Is this a two electron integral in chemist notation?
+    bool antisymmetric;                // Is this an antisymmetric two electron integral?
+    bool fock;                         // Is this a fock matrix?
+    size_t memory2;                    // Memory required for storage in bytes
+    Size_tVec memorypi2;               // Memory required for storage in bytes
+    BoolVec out_of_core;               // Is this irrep stored on disk?
+    int naccess;                       // How many times you have called get_matrix();
+    std::shared_ptr<PSIMRCCWfn> wfn_;  // The wavefunction
    public:
     static double fraction_of_memory_for_buffer;
 };

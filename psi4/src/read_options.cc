@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -149,7 +149,11 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
     options.add_bool("DIE_IF_NOT_CONVERGED", true);
     /*- Integral package to use. If compiled with ERD or Simint support, change this option to use them; LibInt is used
        otherwise. -*/
-    options.add_str("INTEGRAL_PACKAGE", "LIBINT", "ERD LIBINT SIMINT");
+    options.add_str("INTEGRAL_PACKAGE", "LIBINT2", "ERD LIBINT1 SIMINT LIBINT2");
+#ifdef USING_BrianQC
+    /*- Whether to enable using the BrianQC GPU module -*/
+    options.add_bool("BRIANQC_ENABLE", false);
+#endif
 
     // Note that case-insensitive options are only functional as
     //   globals, not as module-level, and should be defined sparingly
@@ -179,7 +183,8 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
     See :ref:`Cross-module Redundancies <table:managedmethods>` for details. -*/
     options.add_str("MP2_TYPE", "DF", "DF CONV CD");
     /*- Algorithm to use for MPn ( $n>2$ ) computation (e.g., MP3 or MP2.5 or MP4(SDQ)).
-    See :ref:`Cross-module Redundancies <table:managedmethods>` for details. -*/
+    See :ref:`Cross-module Redundancies <table:managedmethods>` for details.
+    Since v1.4, default for non-orbital-optimized MP2.5 and MP3 is DF. -*/
     options.add_str("MP_TYPE", "CONV", "DF CONV CD");
     // The type of integrals to use in coupled cluster computations. DF activates density fitting for the largest
     // integral files, while CONV results in no approximations being made.
@@ -247,8 +252,28 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
     /*- How many NOONS to print -- used in libscf_solver/uhf.cc and libmints/oeprop.cc -*/
     options.add_str("PRINT_NOONS", "3");
 
+    ///MBIS Options (libmints/oeprop.cc)
+
+    /*- Maximum Number of MBIS Iterations -*/
+    options.add_int("MBIS_MAXITER", 500);
+    /*- MBIS Convergence Criteria -*/
+    options.add_double("MBIS_D_CONVERGENCE", 1.0e-8);
+    /*- MBIS Number of Radial Points -*/
+    /*- Additional Radial and/or Spherical Points may be needed for Heavier Atoms (200-300) like Zinc -*/
+    options.add_int("MBIS_RADIAL_POINTS", 75);
+    /*- MBIS Number of Spherical Points -*/
+    options.add_int("MBIS_SPHERICAL_POINTS", 302);
+    /*- Pruning scheme for MBIS Grid -*/
+    options.add_str("MBIS_PRUNING_SCHEME", "ROBUST", 
+                    "ROBUST TREUTLER NONE FLAT P_GAUSSIAN D_GAUSSIAN P_SLATER D_SLATER LOG_GAUSSIAN LOG_SLATER NONE");
+    /*- Maximum Radial Moment to Calculate -*/
+    options.add_int("MAX_RADIAL_MOMENT", 4);
+
     /*- PCM boolean for pcmsolver module -*/
     options.add_bool("PCM", false);
+    /*- PE boolean for polarizable embedding module -*/
+    options.add_bool("PE", false);
+
     if (name == "PCM" || options.read_globals()) {
         /*- MODULEDESCRIPTION Performs polarizable continuum model (PCM) computations. -*/
 
@@ -260,12 +285,10 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         options.add_str("PCM_CC_TYPE", "PTE", "PTE");
     }
 
-    /*- PE boolean for polarizable embedding module -*/
-    options.add_bool("PE", false);
     if (name == "PE" || options.read_globals()) {
         /*- MODULEDESCRIPTION Performs polarizable embedding model (PE) computations. -*/
 
-        /*- Name of the potential file -*/
+        /*- Name of the potential file OR contents of potential file to be written anonymously on-the-fly. -*/
         options.add_str_i("POTFILE", "potfile.pot");
         /*- Threshold for induced moments convergence -*/
         options.add_double("INDUCED_CONVERGENCE", 1e-8);
@@ -281,6 +304,13 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         options.add_double("DAMPING_FACTOR_INDUCED", 2.1304);
         /*- Thole damping factor for multipole fields -*/
         options.add_double("DAMPING_FACTOR_MULTIPOLE", 2.1304);
+
+        /*- Summation scheme for field computations, can be direct or fmm -*/
+        options.add_str_i("SUMMATION_FIELDS", "DIRECT", "DIRECT FMM");
+        /*- Expansion order of the multipoles for FMM -*/
+        options.add_int("TREE_EXPANSION_ORDER", 5);
+        /*- Opening angle theta -*/
+        options.add_double("TREE_THETA", 0.5);
 
         /*- Activate border options for sites in proximity to the QM/MM border -*/
         options.add_bool("BORDER", false);
@@ -300,6 +330,9 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         options.add_int("BORDER_N_REDIST", -1);
         /*- redistribute polarizabilities? If false, polarizabilities are removed (default) -*/
         options.add_bool("BORDER_REDIST_POL", false);
+
+        /*- use PE(ECP) repulsive potentials -*/
+        options.add_bool("PE_ECP", false);
     }
 
     if (name == "DETCI" || options.read_globals()) {
@@ -954,7 +987,7 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         /*- Do use Combined Schwarz Approximation Maximum (CSAM) screening on
         two-electron integrals. This is a slightly tighter bound than that of
         default Schwarz screening. -*/
-        options.add_str("SCREENING", "SCHWARZ" "SCHWARZ CSAM");
+        options.add_str("SCREENING", "CSAM", "SCHWARZ CSAM");
         /*- Memory safety -*/
         options.add_double("SAPT_MEM_SAFETY", 0.9);
         /*- Do force SAPT2 and higher to die if it thinks there isn't enough
@@ -991,14 +1024,23 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
 
         /*- SUBSECTION SAPT(DFT) -*/
 
-        /*- How is the GRAC correction determined? -*/
-        options.add_str("SAPT_DFT_GRAC_DETERMINATION", "INPUT", "INPUT");
-        /*- Monomer A GRAC shift? -*/
+        /*- Monomer A GRAC shift in Hartree -*/
         options.add_double("SAPT_DFT_GRAC_SHIFT_A", 0.0);
-        /*- Monomer B GRAC shift? -*/
+        /*- Monomer B GRAC shift in Hartree -*/
         options.add_double("SAPT_DFT_GRAC_SHIFT_B", 0.0);
         /*- Compute the Delta-HF correction? -*/
         options.add_bool("SAPT_DFT_DO_DHF", true);
+        /*- How is the GRAC correction determined? !expert -*/
+        options.add_str("SAPT_DFT_GRAC_DETERMINATION", "INPUT", "INPUT");
+        /*- Enables the hybrid xc kernel in dispersion? !expert -*/
+        options.add_bool("SAPT_DFT_DO_HYBRID", true);
+        /*- Scheme for approximating exchange-dispersion for SAPT-DFT.
+        ``NONE`` Use unscaled ``Exch-Disp2,u`` .
+        ``FIXED`` Use a fixed factor |sapt__sapt_dft_exch_disp_fixed_scale| to scale ``Exch-Disp2,u`` .
+        ``DISP`` Use the ratio of ``Disp2,r`` and ``Disp2,u`` to scale ``Exch-Disp2,u`` . -*/
+        options.add_str("SAPT_DFT_EXCH_DISP_SCALE_SCHEME", "DISP", "NONE FIXED DISP");
+        /*- Exch-disp scaling factor for FIXED scheme for |sapt__sapt_dft_exch_disp_scale_scheme|. Default value of 0.686 suggested by Hesselmann and Korona, J. Chem. Phys. 141, 094107 (2014). !expert -*/
+        options.add_double("SAPT_DFT_EXCH_DISP_FIXED_SCALE", 0.686);
         /*- Underlying funcitonal to use for SAPT(DFT) !expert -*/
         options.add_str("SAPT_DFT_FUNCTIONAL", "PBE0", "");
         /*- Number of points in the Legendre FDDS Dispersion time integration !expert -*/
@@ -1195,11 +1237,6 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         options.add_str("DCT_FUNCTIONAL", "ODC-12", "DC-06 DC-12 ODC-06 ODC-12 ODC-13 CEPA0");
         /*- Whether to compute three-particle energy correction or not -*/
         options.add_str("THREE_PARTICLE", "NONE", "NONE PERTURBATIVE");
-        /*- Do write a MOLDEN output file?  If so, the filename will end in
-        .molden, and the prefix is determined by |globals__writer_file_label|
-        (if set), or else by the name of the output file plus the name of
-        the current molecule. -*/
-        options.add_bool("MOLDEN_WRITE", false);
         /*- Level shift applied to the diagonal of the density-weighted Fock operator. While this shift can improve
            convergence, it does change the DCT energy. !expert-*/
         options.add_double("ENERGY_LEVEL_SHIFT", 0.0);
@@ -1208,6 +1245,9 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         /*- Auxiliary basis set for DCT density fitting computations.
         :ref:`Defaults <apdx:basisFamily>` to a RI basis. -*/
         options.add_str("DF_BASIS_DCT", "");
+        /*- Compute a (relaxed) one-particle density matrix? Can be set manually. Set internally for
+         property and gradient computations. -*/
+        options.add_bool("OPDM", false);
     }
     if (name == "GDMA" || options.read_globals()) {
         /*- MODULEDESCRIPTION Performs distributed multipole analysis (DMA), using
@@ -1272,7 +1312,7 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         options.add_double("CHOLESKY_TOLERANCE", 1e-4);
         /*- Do a density fitting SCF calculation to converge the
             orbitals before switching to the use of exact integrals in
-            a |scf__scf_type| ``DIRECT`` calculation -*/
+            a |globals__scf_type| ``DIRECT`` calculation -*/
         options.add_bool("DF_SCF_GUESS", true);
         /*- Keep JK object for later use? -*/
         options.add_bool("SAVE_JK", false);
@@ -1285,7 +1325,7 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         /*- Tolerance for partial Cholesky decomposition of overlap matrix. -*/
         options.add_double("S_CHOLESKY_TOLERANCE", 1E-8);
         /*- Schwarz screening threshold. Mininum absolute value below which TEI are neglected. -*/
-        options.add_double("INTS_TOLERANCE", 0.0);
+        options.add_double("INTS_TOLERANCE", 1E-12);
         /*- The type of guess orbitals.  Defaults to ``READ`` for geometry optimizations after the first step, to
           ``CORE`` for single atoms, and to ``SAD`` otherwise. The ``HUCKEL`` guess employs on-the-fly calculations
           like SAD, as described in doi:10.1021/acs.jctc.8b01089 which also describes the SAP guess. -*/
@@ -1536,6 +1576,8 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         options.add_double("DFT_BASIS_TOLERANCE", 1.0E-12);
         /*- grid weight cutoff. Disable with -1.0. !expert -*/
         options.add_double("DFT_WEIGHTS_TOLERANCE", 1.0E-15);
+        /*- density cutoff for LibXC. A negative value turns the feature off and LibXC defaults are used. !expert -*/
+        options.add_double("DFT_DENSITY_TOLERANCE", -1.0);
         /*- The DFT grid specification, such as SG1.!expert -*/
         options.add_str("DFT_GRID_NAME", "", "SG0 SG1");
         /*- Select approach for pruning. Options ``ROBUST`` and ``TREUTLER`` prune based on regions (proximity to nucleus) while
@@ -1583,29 +1625,40 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         /*- Save the UHF NOs -*/
         options.add_bool("SAVE_UHF_NOS", false);
 
-        /*- SUBSECTION TDDFT -*/
-        /*- Get the number of desired states per irrep -*/
-        options.add("TDSCF_STATES_PER_IRREP", new ArrayType());
-        /*- Controls inclusion of triplet states, valid options:
-            - none : No triplets computed
-            - also : lowest-energy triplets and singlets included
+        /*- SUBSECTION TDSCF -*/
+        /*- Number of roots (excited states) we should seek to converge. This
+        can be either an integer (total number of states to seek) or a list
+        (number of states per irrep). The latter is only valid if the system has
+        symmetry. Furthermore, the total number of states will be redistributed
+        among irreps when symmetry is used.-*/
+        options.add("TDSCF_STATES", new ArrayType());
+        /*- Controls inclusion of triplet states, which is only valid for restricted references. Valid options:
+            - none : No triplets computed (default)
+            - also : lowest-energy triplets and singlets included, in 50-50
+              ratio. Note that singlets are privileged, i.e. if seeking to
+              converge 5 states in total, 3 will be singlets and 2 will be
+              triplets.
             - only : Only triplet states computed
              -*/
-        //options.add_str("TDSCF_TRIPLETS", "none");
-        //*- Computes spin-adapted products for triplets -*/
-        options.add_bool("TDSCF_TRIPLETS", false);
-        /*- Run with Tamm-Dancoff approximation, uses RPA when false -*/ 
+        options.add_str("TDSCF_TRIPLETS", "NONE", "NONE ALSO ONLY");
+        /*- Run with Tamm-Dancoff approximation (TDA), uses random-phase approximation (RPA) when false -*/
         options.add_bool("TDSCF_TDA", false);
-        /*- Convergence threshold for excitation energies -*/
-        // NOTE: This option may do nothing
-        options.add_double("TDSCF_E_TOL", 1E-6);
-        /*- Convergence threshold for the norm of the residual vector -*/
-        options.add_double("TDSCF_R_TOL", 1E-4);
+        /*- Convergence threshold for the norm of the residual vector. If unset,
+        default based on |scf__d_convergence|. -*/
+        options.add_double("TDSCF_R_CONVERGENCE", 1E-4);
         /*- Guess type, only 'denominators' currently supported -*/
-        options.add_str("TDSCF_GUESS", "denominators");
-        /*- Max number of vectors to store before collapsing -*/
-        options.add_int("TDSCF_MAX_SS_VECTORS",50);
+        options.add_str("TDSCF_GUESS", "DENOMINATORS");
+        /*- Maximum number of TDSCF solver iterations -*/
+        options.add_int("TDSCF_MAXITER", 60);
+        /*- Verbosity level in TDSCF -*/
+        options.add_int("TDSCF_PRINT", 1);
 
+        /*- combine omega exchange and Hartree--Fock exchange into
+              one matrix for efficiency?
+            Default is True for MemDFJK
+              (itself the default for |globals__scf_type| DF),
+            False otherwise as not yet implemented. -*/
+        options.add_bool("WCOMBINE", false);
     }
     if (name == "CPHF" || options.read_globals()) {
         /*- The amount of information printed
@@ -1861,7 +1914,7 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         options.add_str("KIND", "SINGLET", "SINGLET TRIPLET SPIN_FLIP ANY");
         /*- Maximum number of iterations -*/
         options.add_int("MAXITER", 50);
-        /*- Maximum number of subspace vectors. A negative value uses 
+        /*- Maximum number of subspace vectors. A negative value uses
          *  the adcc default (roughly between 20 and 5 * N_GUESSES). This option is only available for the adcc backend. -*/
         options.add_int("MAX_NUM_VECS", -1);
         /*- Specifies the choice of representation of the electric dipole operator.
@@ -1972,8 +2025,14 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         options.add_int("VECS_PER_ROOT", 12);
         /*- Vectors stored in CC3 computations -*/
         options.add_int("VECS_CC3", 10);
-        /*- Do collapse with last vector? -*/
+        /*- When collapsing Davidson subspace, whether to also include the
+        previous approximate solution (for each root)? This doubles the
+        number of resulting vectors but generally improves convergence. -*/
         options.add_bool("COLLAPSE_WITH_LAST", true);
+        /*- Has the same effect as "COLLAPSE_WITH_LAST" but only in 
+        CC3 computations and after the initial solution of EOM CCSD.
+        May help efficiency, but hazardous when solving for higher roots. -*/
+        options.add_bool("COLLAPSE_WITH_LAST_CC3", false);
         /*- Complex tolerance applied in CCEOM computations -*/
         options.add_double("COMPLEX_TOLERANCE", 1E-12);
         /*- Convergence criterion for norm of the residual vector in the Davidson algorithm for CC-EOM. -*/
@@ -2768,7 +2827,7 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         /*- Do apply DIIS extrapolation? -*/
         options.add_bool("DO_DIIS", true);
         /*- Do compute CC Lambda energy? In order to this option to be valid one should use "TPDM_ABCD_TYPE = COMPUTE"
-         * option. -*/
+        option. -*/
         options.add_bool("CCL_ENERGY", false);
         /*- Do compute OCC poles for ionization potentials? Only valid OMP2. -*/
         options.add_bool("IP_POLES", false);
@@ -2850,8 +2909,11 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         options.add_double("E3_SCALE", 0.25);
         /*- OO scaling factor used in MSD -*/
         options.add_double("OO_SCALE", 0.01);
-        /*- Convergence criterion for residual vector of preconditioned conjugate gradient method. -*/
-        options.add_double("PCG_CONVERGENCE", 1e-6);
+        /*- Convergence criterion for residual vector of preconditioned conjugate gradient method.
+        If this keyword is not set by the user, DFOCC will estimate and use a value required to achieve
+        |dfocc__r_convergence| residual convergence. The listed default will be used for the default value
+        of |dfocc__r_convergence|. -*/
+        options.add_double("PCG_CONVERGENCE", 1e-7);
         /*- Regularization parameter -*/
         options.add_double("REG_PARAM", 0.4);
         /*- tolerance for Cholesky decomposition of the ERI tensor -*/
@@ -3014,8 +3076,10 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         options.add_int("DIIS_MAX_VECS", 8);
         /*- Do use low memory option for triples contribution? Note that this
             option is enabled automatically if the memory requirements of the
-            conventional algorithm would exceed the available resources -*/
-        options.add_bool("TRIPLES_LOW_MEMORY", false);
+            conventional algorithm would exceed the available resources.
+            The low memory algorithm is faster in general and has been turned
+            on by default starting September 2020. -*/
+        options.add_bool("TRIPLES_LOW_MEMORY", true);
         /*- Do compute triples contribution? !expert -*/
         options.add_bool("COMPUTE_TRIPLES", true);
         /*- Do compute MP4 triples contribution? !expert -*/

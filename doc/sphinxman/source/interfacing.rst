@@ -3,7 +3,7 @@
 .. #
 .. # Psi4: an open-source quantum chemistry software package
 .. #
-.. # Copyright (c) 2007-2019 The Psi4 Developers.
+.. # Copyright (c) 2007-2021 The Psi4 Developers.
 .. #
 .. # The copyrights for code used from other parties are included in
 .. # the corresponding files.
@@ -44,6 +44,7 @@ platform capabilities, *etc*.
 
    numpy
    adcc
+   brianqc
    cfour
    chemps2
    cppe
@@ -52,6 +53,7 @@ platform capabilities, *etc*.
    libefp
    erd
    fchk
+   plugin_psi4fockci
    gau2grid
    gcp
    gdma

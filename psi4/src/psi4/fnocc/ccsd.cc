@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -238,10 +238,18 @@ double CoupledCluster::compute_energy() {
 
     if (!options_.get_bool("RUN_MP2")) {
         // mp3 energy
+        set_scalar_variable("MP3 SINGLES ENERGY", 0.0);  // fnocc RHF only
+        set_scalar_variable("MP3 DOUBLES ENERGY", emp2_os + emp2_ss + emp3_os + emp3_ss);
+        set_scalar_variable("MP3 OPPOSITE-SPIN CORRELATION ENERGY", emp2_os + emp3_os);
+        set_scalar_variable("MP3 SAME-SPIN CORRELATION ENERGY", emp2_ss + emp3_ss);
         set_scalar_variable("MP3 CORRELATION ENERGY", emp2 + emp3);
         set_scalar_variable("MP3 TOTAL ENERGY", emp2 + emp3 + escf);
 
         // mp2.5 energy
+        set_scalar_variable("MP2.5 SINGLES ENERGY", 0.0);  // fnocc RHF only
+        set_scalar_variable("MP2.5 DOUBLES ENERGY", emp2_os + emp2_ss + 0.5 * (emp3_os + emp3_ss));
+        set_scalar_variable("MP2.5 OPPOSITE-SPIN CORRELATION ENERGY", emp2_os + 0.5 * emp3_os);
+        set_scalar_variable("MP2.5 SAME-SPIN CORRELATION ENERGY", emp2_ss + 0.5 * emp3_ss);
         set_scalar_variable("MP2.5 CORRELATION ENERGY", emp2 + 0.5 * emp3);
         set_scalar_variable("MP2.5 TOTAL ENERGY", emp2 + 0.5 * emp3 + escf);
 
@@ -768,13 +776,11 @@ void CoupledCluster::AllocateMemory() {
         }
         if (options_.get_bool("COMPUTE_TRIPLES") || options_.get_bool("COMPUTE_MP4_TRIPLES")) {
             double tempmem = 8. * (2L * o * o * v * v + o * o * o * v + o * v + 3L * v * v * v * nthreads);
-            if (tempmem > memory) {
-                outfile->Printf("\n        <<< warning! >>> switched to low-memory (t) algorithm\n\n");
-            }
             if (tempmem > memory || options_.get_bool("TRIPLES_LOW_MEMORY")) {
                 isLowMemory = true;
                 tempmem = 8. * (2L * o * o * v * v + o * o * o * v + o * v + 5L * o * o * o * nthreads);
             }
+            outfile->Printf("        (T) algorithm:                             %9.2lf mb (%s-memory)\n", tempmem / 1024. / 1024., isLowMemory ? "low" : "high");
             if (isccsd)
                 outfile->Printf("        memory requirements for CCSD(T) =          %9.2lf mb\n",
                                 tempmem / 1024. / 1024.);
@@ -2234,20 +2240,20 @@ void CoupledCluster::MP4_SDQ() {
         outfile->Printf("        MP2 correlation energy:          %20.12lf\n", emp2);
         outfile->Printf("      * MP2 total energy:                %20.12lf\n", emp2 + escf);
         outfile->Printf("\n");
-        outfile->Printf("        OS MP2.5 correlation energy:     %20.12lf\n", emp2_os / emp2_os_fac + 0.5 * emp3_os);
-        outfile->Printf("        SS MP2.5 correlation energy:     %20.12lf\n", emp2_ss / emp2_ss_fac + 0.5 * emp3_ss);
+        outfile->Printf("        OS MP2.5 correlation energy:     %20.12lf\n", emp2_os + 0.5 * emp3_os);
+        outfile->Printf("        SS MP2.5 correlation energy:     %20.12lf\n", emp2_ss + 0.5 * emp3_ss);
         outfile->Printf("        MP2.5 correlation energy:        %20.12lf\n", emp2 + 0.5 * emp3);
         outfile->Printf("      * MP2.5 total energy:              %20.12lf\n", emp2 + 0.5 * emp3 + escf);
         outfile->Printf("\n");
-        outfile->Printf("        OS MP3 correlation energy:       %20.12lf\n", emp2_os / emp2_os_fac + emp3_os);
-        outfile->Printf("        SS MP3 correlation energy:       %20.12lf\n", emp2_ss / emp2_ss_fac + emp3_ss);
+        outfile->Printf("        OS MP3 correlation energy:       %20.12lf\n", emp2_os + emp3_os);
+        outfile->Printf("        SS MP3 correlation energy:       %20.12lf\n", emp2_ss + emp3_ss);
         outfile->Printf("        MP3 correlation energy:          %20.12lf\n", emp2 + emp3);
         outfile->Printf("      * MP3 total energy:                %20.12lf\n", emp2 + emp3 + escf);
         outfile->Printf("\n");
         outfile->Printf("        OS MP4(SDQ) correlation energy:  %20.12lf\n",
-                        emp2_os / emp2_os_fac + emp3_os + emp4_sd_os + emp4_q_os);
+                        emp2_os + emp3_os + emp4_sd_os + emp4_q_os);
         outfile->Printf("        SS MP4(SDQ) correlation energy:  %20.12lf\n",
-                        emp2_ss / emp2_ss_fac + emp3_ss + emp4_sd_ss + emp4_q_os);
+                        emp2_ss + emp3_ss + emp4_sd_ss + emp4_q_os);
         outfile->Printf("        MP4(SDQ) correlation energy:     %20.12lf\n", emp2 + emp3 + emp4_sd + emp4_q);
         outfile->Printf("      * MP4(SDQ) total energy:           %20.12lf\n", emp2 + emp3 + emp4_sd + emp4_q + escf);
         outfile->Printf("\n");
@@ -2273,13 +2279,13 @@ void CoupledCluster::MP4_SDQ() {
         outfile->Printf("        MP2 correlation energy:          %20.12lf\n", emp2);
         outfile->Printf("      * MP2 total energy:                %20.12lf\n", emp2 + escf);
         outfile->Printf("\n");
-        outfile->Printf("        OS MP2.5 correlation energy:     %20.12lf\n", emp2_os / emp2_os_fac + 0.5 * emp3_os);
-        outfile->Printf("        SS MP2.5 correlation energy:     %20.12lf\n", emp2_ss / emp2_ss_fac + 0.5 * emp3_ss);
+        outfile->Printf("        OS MP2.5 correlation energy:     %20.12lf\n", emp2_os + 0.5 * emp3_os);
+        outfile->Printf("        SS MP2.5 correlation energy:     %20.12lf\n", emp2_ss + 0.5 * emp3_ss);
         outfile->Printf("        MP2.5 correlation energy:        %20.12lf\n", emp2 + 0.5 * emp3);
         outfile->Printf("      * MP2.5 total energy:              %20.12lf\n", emp2 + 0.5 * emp3 + escf);
         outfile->Printf("\n");
-        outfile->Printf("        OS MP3 correlation energy:       %20.12lf\n", emp2_os / emp2_os_fac + emp3_os);
-        outfile->Printf("        SS MP3 correlation energy:       %20.12lf\n", emp2_ss / emp2_ss_fac + emp3_ss);
+        outfile->Printf("        OS MP3 correlation energy:       %20.12lf\n", emp2_os + emp3_os);
+        outfile->Printf("        SS MP3 correlation energy:       %20.12lf\n", emp2_ss + emp3_ss);
         outfile->Printf("        MP3 correlation energy:          %20.12lf\n", emp2 + emp3);
         outfile->Printf("      * MP3 total energy:                %20.12lf\n", emp2 + emp3 + escf);
         outfile->Printf("\n");

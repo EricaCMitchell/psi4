@@ -3,7 +3,7 @@
 .. #
 .. # Psi4: an open-source quantum chemistry software package
 .. #
-.. # Copyright (c) 2007-2019 The Psi4 Developers.
+.. # Copyright (c) 2007-2021 The Psi4 Developers.
 .. #
 .. # The copyrights for code used from other parties are included in
 .. # the corresponding files.
@@ -75,8 +75,8 @@ Installation
   hint its location with :makevar:`CMAKE_PREFIX_PATH`,
   and rebuild |PSIfour| to detect PCMSolver and activate dependent code.
 
-* Previous bullet had details. To build |PSIfour| from source and use
-  pcmsolver from conda without thinking, consult :ref:`sec:condapsi4dev`.
+.. * Previous bullet had details. To build |PSIfour| from source and use
+..   pcmsolver from conda without thinking, consult.
 
 * To remove a conda installation, ``conda remove pcmsolver``.
 
@@ -99,14 +99,24 @@ Using the polarizable continuum model
 
 The inclusion of a PCM description of the solvent into your calculation
 is achieved by setting |globals__pcm| ``true`` in your input file.
-|Psifour| understands the additional option |globals__pcm_scf_type| with possible values ``total``
+|Psifour| understands the additional option |pcm__pcm_scf_type| with possible values ``total``
 (the default) or ``separate``.
 The latter forces the separate handling of nuclear and electronic electrostatic potentials and
 polarization charges. It is mainly useful for debugging.
 
+For the calculation of vertical excitation energies with PCM non-equilibrium solvation should be included with: ::
+
+    pcm = {
+       Medium {
+       Nonequilibrium = True
+       }
+    }
+
 .. note:: At present PCM can only be used for energy calculations with SCF
           wavefunctions and CC wavefunctions in the PTE approximation [Cammi:2009:164104]_.
           All ERI algorithms (``PK``, ``OUT_OF_CORE``, ``DIRECT``, ``DF``, ``CD``) are supported.
+
+.. note:: linear response calculations (static polarisabilities, TD-SCF) are supported for RHF/UHF if available.
 
 .. warning:: The PCMSolver library **cannot** exploit molecular point group symmetry.
 
@@ -169,8 +179,8 @@ Keywords for PCMSolver
 ~~~~~~~~~~~~~~~~~~~~~~
 
 .. include:: autodir_options_c/globals__pcm.rst
-.. include:: autodir_options_c/globals__pcm_scf_type.rst
-.. include:: autodir_options_c/globals__pcm_cc_type.rst
+.. include:: autodir_options_c/pcm__pcm_scf_type.rst
+.. include:: autodir_options_c/pcm__pcm_cc_type.rst
 
 .. _`cmake:pcmsolver`:
 

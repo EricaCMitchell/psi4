@@ -74,10 +74,17 @@ psi4_add_module(lib mints sources)
 # Always linked-to external projects
 target_link_libraries(mints
   PUBLIC
-    Libint::libint
+    Libint2::cxx
   )
 
 # Conditionally linked-to external projects
+if(TARGET Libint::libint)
+  target_link_libraries(mints
+    PUBLIC
+      Libint::libint
+    )
+endif()
+
 if(TARGET simint::simint)
   target_sources(mints
     PRIVATE
@@ -112,5 +119,16 @@ if(TARGET erd::erd)
   target_link_libraries(mints
     PUBLIC
       erd::erd
+    )
+endif()
+
+if(TARGET BrianQC::static_wrapper)
+  target_compile_definitions(mints
+    PUBLIC
+      USING_BrianQC
+    )
+  target_include_directories(mints
+    PUBLIC
+      $<TARGET_PROPERTY:BrianQC::static_wrapper,INTERFACE_INCLUDE_DIRECTORIES>
     )
 endif()

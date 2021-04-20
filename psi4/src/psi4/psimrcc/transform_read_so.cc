@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -54,13 +54,12 @@
 
 namespace psi {
 namespace psimrcc {
-extern MOInfo* moinfo;
 
 /*!
     \fn CCTransform::read_oei_integrals()
  */
 void CCTransform::read_oei_so_integrals() {
-    int nso = moinfo->get_nso();
+    int nso = wfn_->moinfo()->get_nso();
     // Read all the (frozen + non-frozen) OEI in Pitzer order
     allocate_oei_so();
 

@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -44,10 +44,6 @@ SharedMatrix scfgrad(SharedWavefunction ref_wfn, Options &options)
 
     SCFDeriv grad(ref_wfn, options);
     SharedMatrix G = grad.compute_gradient();
-
-    Process::environment.arrays["SCF TOTAL GRADIENT"] = G;
-    Process::environment.arrays["CURRENT GRADIENT"] = G;
-    Process::environment.set_gradient(G);
 
     tstop();
     return G;

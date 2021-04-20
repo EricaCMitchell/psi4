@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -40,8 +40,6 @@
 namespace psi {
 
 namespace psimrcc {
-extern MOInfo* moinfo;
-extern MemoryManager* memory_manager;
 
 double CCMatrix::fraction_of_memory_for_buffer = 0.05;
 
@@ -58,7 +56,12 @@ CCMatrix::CCMatrix(std::string& str, CCIndex* left_index, CCIndex* right_index)
       out_of_core(false),
       right(right_index),
       left(left_index) {
-    nirreps = moinfo->get_nirreps();
+    if (left_index->wfn() != right_index->wfn()) {
+        throw PSIEXCEPTION("\n Error in CCMatrix construction. The CCIndexes must belong to the same wavefunction.");
+    } else {
+        wfn_ = left_index->wfn();
+    }
+    nirreps = wfn_->moinfo()->get_nirreps();
 
     if (str.find("(") != std::string::npos || str.find("<") != std::string::npos) integral = true;
     if (str.find("(") != std::string::npos) chemist_notation = true;
@@ -93,9 +96,7 @@ CCMatrix::CCMatrix(std::string& str, CCIndex* left_index, CCIndex* right_index)
         reference = to_integer(str.substr(left_curly + 1, right_curly - left_curly - 1));
 }
 
-CCMatrix::~CCMatrix() {
-    free_memory();
-}
+CCMatrix::~CCMatrix() { free_memory(); }
 
 /*********************************************************
   Printing Routines
@@ -108,7 +109,8 @@ void CCMatrix::print() {
     outfile->Printf("\n\n\t\t\t\t\t%s Matrix\n", label.c_str());
     for (int i = 0; i < nirreps; i++) {
         if (left->get_pairpi(i) * right->get_pairpi(i)) {
-            outfile->Printf("\nBlock %d (%s,%s)", i, moinfo->get_irr_labs(i).c_str(), moinfo->get_irr_labs(i).c_str());
+            outfile->Printf("\nBlock %d (%s,%s)", i, wfn_->moinfo()->get_irr_labs(i).c_str(),
+                            wfn_->moinfo()->get_irr_labs(i).c_str());
             print_dpdmatrix(i, "outfile");
         }
     }
@@ -156,7 +158,7 @@ void CCMatrix::zero_two_diagonal() {
 }
 
 void CCMatrix::zero_non_doubly_occupied() {
-    const boolvec& is_act_in_occ = moinfo->get_is_actv_in_occ();
+    const boolvec& is_act_in_occ = wfn_->moinfo()->get_is_actv_in_occ();
     auto* pq = new short[2];
     for (int h = 0; h < nirreps; h++)
         for (int i = 0; i < left->get_pairpi(h); i++)
@@ -169,7 +171,7 @@ void CCMatrix::zero_non_doubly_occupied() {
 }
 
 void CCMatrix::zero_non_external() {
-    const boolvec& is_act_in_vir = moinfo->get_is_actv_in_vir();
+    const boolvec& is_act_in_vir = wfn_->moinfo()->get_is_actv_in_vir();
     auto* pq = new short[2];
     for (int h = 0; h < nirreps; h++)
         for (int i = 0; i < left->get_pairpi(h); i++)
@@ -248,8 +250,8 @@ void CCMatrix::tensor_product(std::string& reindexing, double factor, CCMatrix* 
     auto B_matrix = B_Matrix->get_matrix();
     auto C_matrix = C_Matrix->get_matrix();
     double value;
-    for (int b_n = 0; b_n < moinfo->get_nirreps(); b_n++) {
-        for (int c_n = 0; c_n < moinfo->get_nirreps(); c_n++) {
+    for (int b_n = 0; b_n < wfn_->moinfo()->get_nirreps(); b_n++) {
+        for (int c_n = 0; c_n < wfn_->moinfo()->get_nirreps(); c_n++) {
             for (int b_i = 0; b_i < B_Matrix->get_left_pairpi(b_n); b_i++) {
                 for (int b_j = 0; b_j < B_Matrix->get_right_pairpi(b_n); b_j++) {
                     for (int c_i = 0; c_i < C_Matrix->get_left_pairpi(c_n); c_i++) {
@@ -291,8 +293,7 @@ void CCMatrix::print_dpdmatrix(int irrep, std::string out_fname) {
     int ii, jj, kk, nn, ll;
     int i, j;
     auto mode = std::ostream::app;
-    auto printer = out_fname == "outfile" ? psi::outfile
-                                          : std::make_shared<psi::PsiOutStream>(out_fname, mode);
+    auto printer = out_fname == "outfile" ? psi::outfile : std::make_shared<psi::PsiOutStream>(out_fname, mode);
     double** mat = matrix[irrep];
     int left_offset = left->get_first(irrep);
     int right_offset = right->get_first(irrep);

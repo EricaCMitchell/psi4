@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -70,6 +70,69 @@ using namespace psi;
 namespace py = pybind11;
 using namespace pybind11::literals;
 
+#ifdef USING_BrianQC
+#include <use_brian_wrapper.h>
+#include <brian_module.h>
+#include <brian_macros.h>
+
+bool brianEnableEnvFound = false;
+bool brianEnableEnvValue = false;
+
+BrianCookie brianCookie = 0;
+
+bool brianEnable = false;
+bool brianEnableDFT = true;
+brianInt brianRestrictionType = 0;
+bool brianCPHFFlag = false;
+bool brianCPHFLeftSideFlag = false;
+
+void checkBrian() {
+    brianBool err = brianAPIGetError(&brianCookie);
+    if (err) {
+        throw PSIEXCEPTION("BrianQC error detected");
+    }
+}
+
+void brianInit() {
+    if (brianCookie != 0) {
+        throw PSIEXCEPTION("Attempting to reinitialize BrianQC without releasing it first");
+    }
+    
+    brianInt brianAPIVersionOfHost = BRIAN_API_VERSION;
+    brianInt hostID = BRIAN_HOST_PSI4;
+    brianCookie = brianAPIInit(&brianAPIVersionOfHost, &hostID);
+    checkBrian();
+    outfile->Printf("BrianQC initialization successful\n");
+}
+
+void brianRelease()
+{
+    if (brianCookie == 0) {
+        throw PSIEXCEPTION("Attempting to release the BrianQC module when it hasn't been initialized\n");
+    }
+    
+    outfile->Printf("Releasing the BrianQC module\n");
+    brianAPIRelease(&brianCookie);
+    brianCookie = 0;
+}
+
+void handleBrianOption(bool value) {
+    if (brianEnableEnvFound) {
+        outfile->Printf("BRIANQC_ENABLE option found, but overridden by BRIANQC_ENABLE environment variable\n");
+    } else {
+        outfile->Printf("BRIANQC_ENABLE option found, checking value\n");
+        brianEnable = value;
+        if (value && (brianCookie == 0)) {
+            outfile->Printf("BRIANQC_ENABLE option set to true, initializing BrianQC\n");
+            brianInit();
+        } else if (!value && (brianCookie != 0)) {
+            outfile->Printf("BRIANQC_ENABLE option set to false, releasing BrianQC\n");
+            brianRelease();
+        }
+    }
+}
+#endif
+
 // Python helper wrappers
 void export_benchmarks(py::module&);
 void export_blas_lapack(py::module&);
@@ -133,6 +196,9 @@ SharedWavefunction occwave(SharedWavefunction, Options&);
 namespace mcscf {
 SharedWavefunction mcscf(SharedWavefunction, Options&);
 }
+namespace psimrcc {
+SharedWavefunction psimrcc(SharedWavefunction, Options&);
+}
 
 #ifdef USING_gdma
 namespace gdma_interface {
@@ -150,9 +216,6 @@ SharedMatrix scfhess(SharedWavefunction, Options&);
 
 // Does not create a wavefunction
 // namespace fisapt { PsiReturnType fisapt(SharedWavefunction, Options&); }
-namespace psimrcc {
-PsiReturnType psimrcc(SharedWavefunction, Options&);
-}
 namespace sapt {
 PsiReturnType sapt(SharedWavefunction, SharedWavefunction, SharedWavefunction, Options&);
 }
@@ -446,10 +509,9 @@ double py_psi_cceom(SharedWavefunction ref_wfn) {
         return 0.0;
 }
 
-double py_psi_psimrcc(SharedWavefunction ref_wfn) {
+SharedWavefunction py_psi_psimrcc(SharedWavefunction ref_wfn) {
     py_psi_prepare_options_for_module("PSIMRCC");
-    psimrcc::psimrcc(ref_wfn, Process::environment.options);
-    return 0.0;
+    return psimrcc::psimrcc(ref_wfn, Process::environment.options);
 }
 
 SharedWavefunction py_psi_adc(SharedWavefunction ref_wfn) {
@@ -596,6 +658,18 @@ bool py_psi_set_global_option_string(std::string const& key, std::string const& 
         else
             throw std::domain_error("Required option type is boolean, no boolean specified");
     }
+    
+#ifdef USING_BrianQC
+    if (nonconst_key == "BRIANQC_ENABLE") {
+        if (to_upper(value) == "TRUE" || to_upper(value) == "YES" || to_upper(value) == "ON")
+            handleBrianOption(true);
+        else if (to_upper(value) == "FALSE" || to_upper(value) == "NO" || to_upper(value) == "OFF")
+            handleBrianOption(false);
+        else
+            throw std::domain_error("Required option type is boolean, no boolean specified");
+    }
+#endif
+
     return true;
 }
 
@@ -618,6 +692,13 @@ bool py_psi_set_global_option_int(std::string const& key, int value) {
     } else {
         Process::environment.options.set_global_int(nonconst_key, value);
     }
+    
+#ifdef USING_BrianQC
+    if (nonconst_key == "BRIANQC_ENABLE") {
+        handleBrianOption(value);
+    }
+#endif
+    
     return true;
 }
 
@@ -770,6 +851,26 @@ bool py_psi_option_exists_in_module(std::string const& module, std::string const
     return in_module;
 }
 
+py::dict py_psi_options_to_python(std::string const& module) {
+    Process::environment.options.set_current_module(module);
+    py_psi_prepare_options_for_module(module);
+    std::vector<std::string> all_options = Process::environment.options.list_globals();
+
+    auto mopt = py::dict();
+    for (size_t i = 0; i < all_options.size(); i++) {
+        std::string nonconst_key = all_options[i];
+        bool in_module = Process::environment.options.exists_in_active(nonconst_key);
+        if (in_module) {
+            Data& ldata = Process::environment.options.get_local(nonconst_key);
+            bool lhoc = ldata.has_changed();
+            Data& odata = Process::environment.options.use_local(nonconst_key);
+            bool ohoc = odata.has_changed();
+            mopt[py::str(nonconst_key)] = py::make_tuple(lhoc, ohoc);
+        }
+    }
+    return mopt;
+}
+
 void py_psi_revoke_global_option_changed(std::string const& key) {
     std::string nonconst_key = to_upper(key);
     Data& data = Process::environment.options.get_global(nonconst_key);
@@ -920,7 +1021,11 @@ void py_psi_set_n_threads(size_t nthread, bool quiet) {
 
 int py_psi_get_n_threads() { return Process::environment.get_n_threads(); }
 
+PSI_DEPRECATED("Using core.legacy_wavefunction rather than setting return_wfn=True for a computation is deprecated, "
+        "and in 1.5, it will stop working.")
 std::shared_ptr<Wavefunction> py_psi_legacy_wavefunction() { return Process::environment.legacy_wavefunction(); }
+PSI_DEPRECATED("Using core.set_legacy_wavefunction rather than passing a wavefunction into a computation is deprecated, "
+        "and in 1.5, it will stop working.")
 void py_psi_set_legacy_wavefunction(SharedWavefunction wfn) { Process::environment.set_legacy_wavefunction(wfn); }
 
 void py_psi_print_variable_map() {
@@ -985,6 +1090,23 @@ bool psi4_python_module_initialize() {
     static char* argv = (char*)"";
     for_rtl_init_(&argc, &argv);
 #endif
+    
+#ifdef USING_BrianQC
+    const char* brianEnableEnv = getenv("BRIANQC_ENABLE");
+    brianEnableEnvFound = (bool)brianEnableEnv;
+    if (brianEnableEnvFound) {
+        outfile->Printf("BRIANQC_ENABLE environment variable found, checking value\n");
+        brianEnableEnvValue = (bool)atoi(brianEnableEnv);
+        brianEnable = brianEnableEnvValue;
+        if (brianEnableEnvValue) {
+            outfile->Printf("BRIANQC_ENABLE is true, attempting to initialize BrianQC\n");
+            brianInit();
+        }
+    }
+    
+    const char* brianEnableDFTEnv = getenv("BRIANQC_ENABLE_DFT");
+    brianEnableDFT = brianEnableDFTEnv ? (bool)atoi(brianEnableDFTEnv) : true;
+#endif
 
     initialized = true;
 
@@ -992,6 +1114,12 @@ bool psi4_python_module_initialize() {
 }
 
 void psi4_python_module_finalize() {
+#ifdef USING_BrianQC
+    if (brianCookie != 0) {
+        brianRelease();
+    }
+#endif
+    
 #ifdef INTEL_Fortran_ENABLED
     for_rtl_finish_();
 #endif
@@ -1164,6 +1292,9 @@ PYBIND11_MODULE(core, core) {
     core.def("option_exists_in_module", py_psi_option_exists_in_module,
              "Given a string of a keyword name *arg1* and a particular module *arg0*, returns whether *arg1* is a "
              "valid option for *arg0*.");
+
+    core.def("options_to_python", py_psi_options_to_python,
+             "Get dictionary of whether options of module have changed.");
 
     // These return/set/print PSI variables found in Process::environment.globals
     core.def("has_scalar_variable",

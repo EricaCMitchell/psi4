@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -58,6 +58,8 @@
 #include "psi4/libciomr/libciomr.h"
 #include "psi4/libqt/qt.h"
 
+#include "psimrcc_wfn.h"
+
 namespace psi {
 namespace psimrcc {
 
@@ -70,7 +72,7 @@ enum TriplesCouplingType { nocoupling, linear, quadratic, cubic };
  */
 class CCManyBody {
    public:
-    CCManyBody(SharedWavefunction ref_wfn, Options& options);
+    CCManyBody(std::shared_ptr<PSIMRCCWfn> wfn, Options& options);
     virtual ~CCManyBody();
     void generate_integrals();
     void generate_denominators();
@@ -78,17 +80,19 @@ class CCManyBody {
     void make_fock_matrix();
     void make_denominators();
     void print_method(const char* text);
+    virtual double compute_energy() { throw PSIEXCEPTION("CCManyBody::compute_energy must be overriden."); };
     //  void        zero_internal_amps();
     //  void        zero_t1_internal_amps();
     //  void        zero_internal_delta_amps();
    protected:
     Options& options_;
-    SharedWavefunction ref_wfn_;
+    std::shared_ptr<PSIMRCCWfn> wfn_;
     // Effective Hamiltonian and the correpsonding eigenvectors
     void print_eigensystem(int ndets, double** Heff, std::vector<double>& eigenvector);
-    double diagonalize_Heff(int root, int ndets, double** Heff, std::vector<double>& right_eigenvector, std::vector<double>& left_eigenvector,
-                            bool initial);
-    void sort_eigensystem(int ndets, std::vector<double>& real, std::vector<double>& imaginary, double**& left, double**& right);
+    double diagonalize_Heff(int root, int ndets, double** Heff, std::vector<double>& right_eigenvector,
+                            std::vector<double>& left_eigenvector, bool initial);
+    void sort_eigensystem(int ndets, std::vector<double>& real, std::vector<double>& imaginary, double**& left,
+                          double**& right);
     double c_H_c(int ndets, double** H, std::vector<double>& c);
 
     std::vector<double> zeroth_order_eigenvector;

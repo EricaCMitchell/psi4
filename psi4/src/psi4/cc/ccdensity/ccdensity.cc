@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -365,6 +365,7 @@ PsiReturnType ccdensity(std::shared_ptr<Wavefunction> ref_wfn, Options &options)
         }
 
         /* Transform Da/b to so basis and set in wfn */
+        // If this becomes a wavefunction subclass someday, just redefine the densities directly.
         if (ref_wfn->same_a_b_dens()) {
             Pa->scale(0.5);
             auto Pa_so = linalg::triplet(ref_wfn->Ca(), Pa, ref_wfn->Ca(), false, false, true);

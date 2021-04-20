@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -35,7 +35,9 @@
  *  A multireference coupled cluster code
  ***************************************************************************/
 
+#include "blas.h"
 #include "manybody.h"
+#include "psimrcc_wfn.h"
 #include "updater.h"
 #include "psi4/liboptions/liboptions.h"
 
@@ -49,9 +51,9 @@ class Updater;
 */
 class IDMRPT2 : public CCManyBody {
    public:
-    IDMRPT2(SharedWavefunction ref_wfn, Options& options);
+    IDMRPT2(std::shared_ptr<PSIMRCCWfn> wfn, Options& options);
     ~IDMRPT2() override;
-    double compute_energy();
+    double compute_energy() override;
 
    private:
     std::shared_ptr<Updater> updater_;

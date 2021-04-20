@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -55,11 +55,13 @@
 #include <array>
 #include <vector>
 
+#include "psimrcc_wfn.h"
+
 namespace psi {
 
 namespace psimrcc {
 
-typedef std::vector<std::vector<int> > vecvecint;
+typedef std::vector<std::vector<int>> vecvecint;
 
 /**
         @author Francesco Evangelista <frank@ccc.uga.edu>
@@ -74,7 +76,7 @@ class CCIndex {
     ///////////////////////////////////////////////////////////////////////////////
     // Class Constructor and Destructor
     ///////////////////////////////////////////////////////////////////////////////
-    CCIndex(std::string str);
+    CCIndex(std::shared_ptr<PSIMRCCWfn>, std::string str);
     ~CCIndex();
 
     ///////////////////////////////////////////////////////////////////////////////
@@ -123,13 +125,19 @@ class CCIndex {
     vecvecint& get_indices_to_pitzer() { return (indices_to_pitzer); }
 
     const std::vector<size_t>& get_one_index_to_tuple_rel_index() { return (one_index_to_tuple_rel_index); };
-    const std::vector<std::vector<size_t>>& get_two_index_to_tuple_rel_index() { return (two_index_to_tuple_rel_index); };
-    const std::vector<std::vector<std::vector<size_t>>>& get_three_index_to_tuple_rel_index() { return (three_index_to_tuple_rel_index); };
+    const std::vector<std::vector<size_t>>& get_two_index_to_tuple_rel_index() {
+        return (two_index_to_tuple_rel_index);
+    };
+    const std::vector<std::vector<std::vector<size_t>>>& get_three_index_to_tuple_rel_index() {
+        return (three_index_to_tuple_rel_index);
+    };
     const std::vector<int>& get_one_index_to_irrep() { return (one_index_to_irrep); };
     const std::vector<std::vector<int>>& get_two_index_to_irrep() { return (two_index_to_irrep); };
     const std::vector<std::vector<std::vector<int>>>& get_three_index_to_irrep() { return (three_index_to_irrep); };
 
     std::vector<std::vector<int>> get_element_irrep() { return (element_irrep); }
+
+    const std::shared_ptr<PSIMRCCWfn> wfn() const { return wfn_; }
 
    private:
     ///////////////////////////////////////////////////////////////////////////////
@@ -154,17 +162,18 @@ class CCIndex {
     bool greater_than_or_equal;                // >= tuples
     bool greater_than;                         // >  tuples
     size_t ntuples;                            // Number of tuples
-    std::vector<std::array<short, 3>> tuples;                            // The tuples ordered as matrix : tuples[number][element]
+    std::vector<std::array<short, 3>> tuples;  // The tuples ordered as matrix : tuples[number][element]
     Size_tVec first;                           // First pair of irrep
     Size_tVec last;                            // Last  pair of irrep
     Size_tVec tuplespi;                        // Number of tuples for irrep
     Size_tVec one_index_to_tuple_rel_index;    // 1->tuple mapping array
-    std::vector<std::vector<size_t>> two_index_to_tuple_rel_index;     // 2->tuple mapping array
+    std::vector<std::vector<size_t>> two_index_to_tuple_rel_index;                 // 2->tuple mapping array
     std::vector<std::vector<std::vector<size_t>>> three_index_to_tuple_rel_index;  // 3->tuple mapping array
-    std::vector<int> one_index_to_irrep;       // 1->irrep mapping array
-    std::vector<std::vector<int>> two_index_to_irrep;                  // 2->irrep mapping array
+    std::vector<int> one_index_to_irrep;                                           // 1->irrep mapping array
+    std::vector<std::vector<int>> two_index_to_irrep;                              // 2->irrep mapping array
     std::vector<std::vector<std::vector<int>>> three_index_to_irrep;               // 3->irrep mapping array
-    std::vector<std::vector<int>> element_irrep;                     // Irrep of each element
+    std::vector<std::vector<int>> element_irrep;                                   // Irrep of each element
+    std::shared_ptr<PSIMRCCWfn> wfn_;  // The wavefunction where moinfo is kept
 };
 
 }  // namespace psimrcc

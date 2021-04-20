@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -30,6 +30,8 @@
 #define _psi_src_bin_psimrcc_ccoperation_h
 
 #include <string>
+
+#include "psimrcc_wfn.h"
 
 namespace psi {
 namespace psimrcc {
@@ -66,6 +68,7 @@ class CCOperation {
     CCMatrix* A_Matrix;
     CCMatrix* B_Matrix;
     CCMatrix* C_Matrix;
+    std::shared_ptr<PSIMRCCWfn> wfn_;
 
    private:
     // Check that an operation can be performed

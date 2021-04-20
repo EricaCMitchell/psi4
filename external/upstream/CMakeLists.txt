@@ -10,6 +10,7 @@ foreach(dir
   gau2grid
   gdma
   libint
+  libint2
   mdi
   pcmsolver
   pylibefp
@@ -17,6 +18,7 @@ foreach(dir
   qcengine
   simint
   libxc
+  brianqc
   )
   add_subdirectory(${dir})
 endforeach()

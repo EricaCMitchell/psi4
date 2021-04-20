@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -104,7 +104,8 @@ int CCBLAS::parse(std::string& str) {
             }
         }
         if (noperations_added && assignment[0] != '+') assignment = "+" + assignment;
-        CCOperation op(factor, assignment, reindexing, operation, A_Matrix, B_Matrix, C_Matrix, work[0].data(), buffer[0].data());
+        CCOperation op(factor, assignment, reindexing, operation, A_Matrix, B_Matrix, C_Matrix, work[0].data(),
+                       buffer[0].data());
         operations.push_back(op);
         noperations_added++;
     }

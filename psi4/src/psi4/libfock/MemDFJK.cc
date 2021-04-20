@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -32,7 +32,6 @@
 #include "psi4/libqt/qt.h"
 #include "psi4/psi4-dec.h"
 #include "psi4/psifiles.h"
-#include "psi4/libmints/sieve.h"
 #include "psi4/libmints/matrix.h"
 #include "psi4/libmints/basisset.h"
 #include "psi4/libmints/vector.h"
@@ -80,6 +79,14 @@ void MemDFJK::preiterations() {
     dfh_->set_memory(memory_ - memory_overhead());
     dfh_->set_do_wK(do_wK_);
     dfh_->set_omega(omega_);
+    if (do_wK_) { 
+        dfh_->set_wcombine(wcombine_); 
+    } else {
+        dfh_->set_wcombine(false);
+        wcombine_ = false;
+    }
+    dfh_->set_omega_alpha(omega_alpha_);
+    dfh_->set_omega_beta(omega_beta_);
 
     // we need to prepare the AOs here, and that's it.
     // DFHelper takes care of all the housekeeping
@@ -125,5 +132,19 @@ int MemDFJK::max_nocc() const {
     }
     return max_nocc;
 }
-void MemDFJK::set_do_wK(bool tf) { do_wK_ = tf; dfh_->set_do_wK(tf); }
+void MemDFJK::set_omega_alpha(double alpha) {
+    omega_alpha_ = alpha;
+    dfh_->set_omega_alpha(omega_alpha_);
 }
+void MemDFJK::set_omega_beta(double beta){
+    omega_beta_ = beta;
+    dfh_->set_omega_beta(omega_beta_);
+}
+void MemDFJK::set_do_wK(bool tf) { do_wK_ = tf; dfh_->set_do_wK(tf); }
+void MemDFJK::set_wcombine(bool wcombine) { 
+    wcombine_ = wcombine;
+    if (dfh_) {
+        dfh_->set_wcombine(wcombine); 
+    }
+}
+}  // namespace psi

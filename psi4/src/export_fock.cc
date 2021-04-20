@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -26,6 +26,7 @@
  * @END LICENSE
  */
 
+#include <libint2/shell.h>
 #include "psi4/pybind11.h"
 
 #include "psi4/libfock/jk.h"
@@ -66,7 +67,14 @@ void export_fock(py::module &m) {
         .def("set_do_J", &JK::set_do_J)
         .def("set_do_K", &JK::set_do_K)
         .def("set_do_wK", &JK::set_do_wK)
-        .def("set_omega", &JK::set_omega)
+        .def("set_omega", &JK::set_omega, "Dampening term for range separated DFT", "omega"_a)
+        .def("get_omega", &JK::get_omega, "Dampening term for range separated DFT")
+        .def("set_wcombine", &JK::set_wcombine, "Are Exchange terms in one Matrix", "wcombine"_a )
+        .def("get_wcombine", &JK::get_wcombine, "Are Exchange terms in one Matrix", "wcombine")
+        .def("set_omega_alpha", &JK::set_omega_alpha, "Weight for HF exchange term in range-separated DFT", "alpha"_a)
+        .def("get_omega_alpha", &JK::get_omega_alpha, "Weight for HF exchange term in range-separated DFT")
+        .def("set_omega_beta", &JK::set_omega_beta, "Weight for dampened exchange term in range-separated DFT", "beta"_a)
+        .def("get_omega_beta", &JK::get_omega_beta, "Weight for dampened exchange term in range-separated DFT")
         .def("compute", &JK::compute)
         .def("finalize", &JK::finalize)
         .def("C_clear",

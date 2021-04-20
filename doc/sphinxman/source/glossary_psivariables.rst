@@ -3,7 +3,7 @@
 .. #
 .. # Psi4: an open-source quantum chemistry software package
 .. #
-.. # Copyright (c) 2007-2019 The Psi4 Developers.
+.. # Copyright (c) 2007-2021 The Psi4 Developers.
 .. #
 .. # The copyrights for code used from other parties are included in
 .. # the corresponding files.
@@ -530,6 +530,12 @@ PSI Variables by Alpha
 
    The total electronic energy [H] and correlation energy component [H]
    for the full configuration interaction level of theory.
+
+.. psivar:: GRID ELECTRONS TOTAL
+   GRID ELECTRONS ALPHA
+   GRID ELECTRONS BETA
+
+   The number of electrons integrated by the xc quadrature grid.
 
 .. psivar:: HF TOTAL ENERGY
 

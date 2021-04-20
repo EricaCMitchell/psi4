@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -58,6 +58,19 @@
 #include "psi4/libtrans/integraltransform.h"
 
 #include "rhf.h"
+
+#ifdef USING_BrianQC
+
+#include <use_brian_wrapper.h>
+#include <brian_macros.h>
+#include <brian_types.h>
+
+extern void checkBrian();
+extern BrianCookie brianCookie;
+extern bool brianEnable;
+extern bool brianEnableDFT;
+
+#endif
 
 namespace psi {
 namespace scf {
@@ -196,21 +209,34 @@ void RHF::form_G() {
     }
 
     G_->axpy(2.0, J_);
-
+    
     double alpha = functional_->x_alpha();
     double beta = functional_->x_beta();
-
-    if (alpha != 0.0) {
+    
+#ifdef USING_BrianQC
+    if (brianEnable and brianEnableDFT) {
+        // BrianQC multiplies with the exact exchange factors inside the Fock building, so we must not do it here
+        alpha = 1.0;
+        beta = 1.0;
+    }
+#endif
+    
+    if (functional_->is_x_hybrid() && !(functional_->is_x_lrc() && jk_->get_wcombine()) ) {
         G_->axpy(-alpha, K_);
     } else {
         K_->zero();
     }
 
     if (functional_->is_x_lrc()) {
-        G_->axpy(-beta, wK_);
+        if (jk_->get_wcombine()) {
+            G_->axpy(-1.0, wK_);
+        } else {
+            G_->axpy(-beta, wK_);
+        }
     } else {
         wK_->zero();
     }
+
 }
 
 double RHF::compute_orbital_gradient(bool save_fock, int max_diis_vectors) {
@@ -311,13 +337,27 @@ double RHF::compute_E() {
     }
 
     double exchange_E = 0.0;
+    
     double alpha = functional_->x_alpha();
     double beta = functional_->x_beta();
+    
+#ifdef USING_BrianQC
+    if (brianEnable and brianEnableDFT) {
+        // BrianQC multiplies with the exact exchange factors inside the Fock building, so we must not do it here
+        alpha = 1.0;
+        beta = 1.0;
+    }
+#endif
+    
     if (functional_->is_x_hybrid()) {
         exchange_E -= alpha * Da_->vector_dot(K_);
     }
     if (functional_->is_x_lrc()) {
-        exchange_E -= beta * Da_->vector_dot(wK_);
+        if (jk_->get_do_wK() && jk_->get_wcombine()) {
+            exchange_E -= Da_->vector_dot(wK_);
+        } else {
+            exchange_E -= beta * Da_->vector_dot(wK_);
+        }
     }
 
     double two_electron_E = D_->vector_dot(Fa_) - 0.5 * one_electron_E;
@@ -442,7 +482,7 @@ std::vector<SharedMatrix> RHF::twoel_Hx(std::vector<SharedMatrix> x_vec, bool co
     for (size_t i = 0; i < x_vec.size(); i++) {
         if (c1_input_[i]) {
             if ((x_vec[i]->rowspi()[0] != nalpha_) || (x_vec[i]->colspi()[0] != (nmo_ - nalpha_))) {
-                throw PSIEXCEPTION("SCF::onel_Hx incoming rotation matrices must have shape (occ x vir).");
+                throw PSIEXCEPTION("SCF::twoel_Hx incoming rotation matrices must have shape (occ x vir).");
             }
             Co = Cocc_ao;
             Cv = Cvir_ao;
@@ -472,17 +512,35 @@ std::vector<SharedMatrix> RHF::twoel_Hx(std::vector<SharedMatrix> x_vec, bool co
         std::vector<SharedMatrix> Dx;
         for (size_t i = 0; i < x_vec.size(); i++) {
             Dx.push_back(linalg::doublet(Cl[i], Cr[i], false, true));
-            Vx.push_back(std::make_shared<Matrix>("Vx Temp", Dx[i]->rowspi(), Dx[i]->colspi()));
+            Vx.push_back(std::make_shared<Matrix>("Vx Temp", Dx[i]->rowspi(), Dx[i]->colspi(), Dx[i]->symmetry()));
         }
         potential_->compute_Vx(Dx, Vx);
+    }
+    
+    std::vector<SharedMatrix> V_ext_pert;
+    for (const auto& pert : external_cpscf_perturbations_) {
+        if (print_ > 1) outfile->Printf("Adding external CPSCF contribution %s.\n", pert.first.c_str());
+        for (size_t i = 0; i < x_vec.size(); i++) {
+            auto Dx = linalg::doublet(Cl[i], Cr[i], false, true);
+            V_ext_pert.push_back(pert.second(Dx));
+        }
     }
 
     Cl.clear();
     Cr.clear();
-
+    
     // Build return vector, ohyea thats fun
     double alpha = functional_->x_alpha();
     double beta = functional_->x_beta();
+    
+#ifdef USING_BrianQC
+    if (brianEnable and brianEnableDFT) {
+        // BrianQC multiplies with the exact exchange factors inside the Fock building, so we must not do it here
+        alpha = 1.0;
+        beta = 1.0;
+    }
+#endif
+    
     std::vector<SharedMatrix> ret;
     if (combine) {
         // Cocc_ni (4 * J[D]_nm - K[D]_nm - K[D]_mn) C_vir_ma
@@ -499,13 +557,22 @@ std::vector<SharedMatrix> RHF::twoel_Hx(std::vector<SharedMatrix> x_vec, bool co
             if (functional_->needs_xc()) {
                 J[i]->axpy(4.0, Vx[i]);
             }
+            if (V_ext_pert.size()) {
+                J[i]->axpy(4.0, V_ext_pert[i]);
+            }
             ret.push_back(J[i]);
         }
     } else {
+        if (jk_->get_wcombine()) {
+            throw PSIEXCEPTION("RHF::twoel_Hx user asked for wcombine but combine==false in SCF::twoel_Hx. Please set wcombine false in your input.");
+        }
         for (size_t i = 0; i < x_vec.size(); i++) {
             // always have a J-like piece (optionally include Xc)
             if (functional_->needs_xc()) {
                 J[i]->add(Vx[i]);
+            }
+            if (V_ext_pert.size()) {
+                J[i]->add(V_ext_pert[i]);
             }
             ret.push_back(J[i]);
             // may have K^HF

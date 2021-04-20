@@ -3,7 +3,7 @@
  *
  * Psi4: an open-source quantum chemistry software package
  *
- * Copyright (c) 2007-2019 The Psi4 Developers.
+ * Copyright (c) 2007-2021 The Psi4 Developers.
  *
  * The copyrights for code used from other parties are included in
  * the corresponding files.
@@ -62,6 +62,19 @@
 #include "psi4/libtrans/integraltransform.h"
 
 #include "stability.h"
+
+#ifdef USING_BrianQC
+
+#include <use_brian_wrapper.h>
+#include <brian_macros.h>
+#include <brian_types.h>
+
+extern void checkBrian();
+extern BrianCookie brianCookie;
+extern bool brianEnable;
+extern bool brianEnableDFT;
+
+#endif
 
 namespace psi {
 namespace scf {
@@ -170,6 +183,7 @@ void UHF::form_V() {
     // Vb_ = Va_;
 }
 void UHF::form_G() {
+
     if (functional_->needs_xc()) {
         form_V();
         Ga_->copy(Va_);
@@ -184,10 +198,8 @@ void UHF::form_G() {
     C.clear();
     C.push_back(Ca_subset("SO", "OCC"));
     C.push_back(Cb_subset("SO", "OCC"));
-
     // Run the JK object
     jk_->compute();
-
     // Pull the J and K matrices off
     const std::vector<SharedMatrix>& J = jk_->J();
     const std::vector<SharedMatrix>& K = jk_->K();
@@ -204,11 +216,19 @@ void UHF::form_G() {
     }
     Ga_->add(J_);
     Gb_->add(J_);
-
+    
     double alpha = functional_->x_alpha();
     double beta = functional_->x_beta();
+    
+#ifdef USING_BrianQC
+    if (brianEnable and brianEnableDFT) {
+        // BrianQC multiplies with the exact exchange factors inside the Fock building, so we must not do it here
+        alpha = 1.0;
+        beta = 1.0;
+    }
+#endif
 
-    if (alpha != 0.0) {
+    if (functional_->is_x_hybrid() && !(functional_->is_x_lrc() && jk_->get_wcombine()) ){
         Ga_->axpy(-alpha, Ka_);
         Gb_->axpy(-alpha, Kb_);
     } else {
@@ -217,8 +237,14 @@ void UHF::form_G() {
     }
 
     if (functional_->is_x_lrc()) {
-        Ga_->axpy(-beta, wKa_);
-        Gb_->axpy(-beta, wKb_);
+        if (jk_->get_wcombine()) {
+            Ga_->axpy(-1.0, wKa_);
+            Gb_->axpy(-1.0, wKb_);
+        }
+        else {
+            Ga_->axpy(-beta, wKa_);
+            Gb_->axpy(-beta, wKb_);
+        }
     } else {
         wKa_->zero();
         wKb_->zero();
@@ -326,16 +352,30 @@ double UHF::compute_E() {
         VV10_E = potential_->quadrature_values()["VV10"];
     }
 
-    double exchange_E = 0.0;
     double alpha = functional_->x_alpha();
     double beta = functional_->x_beta();
+    
+#ifdef USING_BrianQC
+    if (brianEnable and brianEnableDFT) {
+        // BrianQC multiplies with the exact exchange factors inside the Fock building, so we must not do it here
+        alpha = 1.0;
+        beta = 1.0;
+    }
+#endif
+    
+    double exchange_E = 0.0;
     if (functional_->is_x_hybrid()) {
         exchange_E -= alpha * Da_->vector_dot(Ka_);
         exchange_E -= alpha * Db_->vector_dot(Kb_);
     }
     if (functional_->is_x_lrc()) {
-        exchange_E -= beta * Da_->vector_dot(wKa_);
-        exchange_E -= beta * Db_->vector_dot(wKb_);
+        if (jk_->get_do_wK() && jk_->get_wcombine()) {
+            exchange_E -=  Da_->vector_dot(wKa_);
+            exchange_E -=  Db_->vector_dot(wKb_);
+        } else {
+            exchange_E -= beta * Da_->vector_dot(wKa_);
+            exchange_E -= beta * Db_->vector_dot(wKb_);
+        }
     }
 
     energies_["Nuclear"] = nuclearrep_;
@@ -555,12 +595,32 @@ std::vector<SharedMatrix> UHF::twoel_Hx(std::vector<SharedMatrix> x_vec, bool co
         potential_->compute_Vx(Dx, Vx);
     }
 
+    std::vector<SharedMatrix> V_ext_pert;
+    for (const auto &pert : external_cpscf_perturbations_) {
+        if (print_ > 1) outfile->Printf("Adding external CPSCF contribution %s.\n", pert.first.c_str());
+        for (size_t i = 0; i < nvecs; i++) {
+            auto Dx_a = linalg::doublet(Cl[i], Cr[i], false, true);
+            auto Dx_b = linalg::doublet(Cl[nvecs + i], Cr[nvecs + i], false, true);
+            V_ext_pert.push_back(pert.second(Dx_a));
+            V_ext_pert.push_back(pert.second(Dx_b));
+        }
+    }
+
     Cl.clear();
     Cr.clear();
 
     // Build return vector
     double alpha = functional_->x_alpha();
     double beta = functional_->x_beta();
+    
+#ifdef USING_BrianQC
+    if (brianEnable and brianEnableDFT) {
+        // BrianQC multiplies with the exact exchange factors inside the Fock building, so we must not do it here
+        alpha = 1.0;
+        beta = 1.0;
+    }
+#endif
+    
     std::vector<SharedMatrix> ret;
     if (combine) {
         for (size_t i = 0; i < nvecs; i++) {
@@ -585,16 +645,27 @@ std::vector<SharedMatrix> UHF::twoel_Hx(std::vector<SharedMatrix> x_vec, bool co
                 J[nvecs + i]->axpy(-beta, wK[nvecs + i]);
                 J[nvecs + i]->axpy(-beta, wK[nvecs + i]->transpose());
             }
+            if (V_ext_pert.size()) {
+                J[i]->axpy(2.0, V_ext_pert[2 * i]);
+                J[nvecs + i]->axpy(2.0, V_ext_pert[2 * i + 1]);
+            }
             ret.push_back(J[i]);
             ret.push_back(J[nvecs + i]);
         }
     } else {
+        if (jk_->get_wcombine()) {
+            throw PSIEXCEPTION("UHF::twoel_Hx user asked for wcombine but combine==false in SCF::twoel_Hx. Please set wcombine false in your input.");
+        }
         for (size_t i = 0; i < nvecs; i++) {
             J[i]->add(J[nvecs + i]);
             J[nvecs + i]->copy(J[i]);
             if (functional_->needs_xc()) {
                 J[i]->add(Vx[2 * i]);
                 J[nvecs + i]->add(Vx[2 * i + 1]);
+            }
+            if (V_ext_pert.size()) {
+                J[i]->add(V_ext_pert[2 * i]);
+                J[nvecs + i]->add(V_ext_pert[2 * i + 1]);
             }
             ret.push_back(J[i]);
             ret.push_back(J[nvecs + i]);
