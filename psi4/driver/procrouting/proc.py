@@ -1228,9 +1228,32 @@ def scf_wavefunction_factory(name, ref_wfn, reference, **kwargs):
             wfn.set_sad_fitting_basissets(sad_fitting_list)
             optstash.restore()
 
-    # Deal with the EXTERN issues
+    if hasattr(core, "EXTERN") and 'external_potentials' in kwargs: 
+        core.print_out("\n  Warning! Both an external potential EXTERN object and the external_potential" +
+                       " keyword argument are specified. The external_potentials keyword argument will be ignored.\n")
+
+    # If EXTERN is set, then place that potential on the wfn
     if hasattr(core, "EXTERN"):
+        wfn.set_potential_variable("C", core.EXTERN) # This is for the FSAPT procedure
         wfn.set_external_potential(core.EXTERN)
+
+    elif 'external_potentials' in kwargs:
+        # For FSAPT, we can take a dictionary of external potentials, e.g.,
+        # external_potentials={'A': potA, 'B': potB, 'C': potC} (any optional)
+        # For the dimer SAPT calculation, we need to account for the external potential
+        # in all of the subsystems A, B, C. So we add them all in total_external_potential
+        # and set the external potential to the dimer wave function
+        total_external_potential = core.ExternalPotential()
+
+        for frag in kwargs['external_potentials']:
+            if frag.upper() in "ABC":
+                wfn.set_potential_variable(frag.upper(), kwargs['external_potentials'][frag].extern)
+                total_external_potential.appendCharges(kwargs['external_potentials'][frag].extern.getCharges())
+
+            else:
+                core.print_out("\n  Warning! Unknown key for the external_potentials argument: %s" %frag)
+
+        wfn.set_external_potential(total_external_potential)
 
     return wfn
 
@@ -3095,9 +3118,11 @@ def run_cc_property(name, **kwargs):
                     core.set_variable("CC ROOT 0 QUADRUPOLE YZ", core.variable("CC QUADRUPOLE YZ"))
                     core.set_variable("CC ROOT 0 QUADRUPOLE ZZ", core.variable("CC QUADRUPOLE ZZ"))
             if 'dipole' in one:
-                core.set_variable("CC ROOT 0 DIPOLE", core.variable("CC DIPOLE"))  # P::e CCENERGY
+                core.set_variable("CC ROOT 0 DIPOLE", core.variable("CC DIPOLE"))
+                # core.set_variable("CC ROOT n DIPOLE", core.variable("CC DIPOLE"))  # P::e CCENERGY
             if 'quadrupole' in one:
-                core.set_variable("CC ROOT 0 QUADRUPOLE", core.variable("CC QUADRUPOLE"))  # P::e CCENERGY
+                core.set_variable("CC ROOT 0 QUADRUPOLE", core.variable("CC QUADRUPOLE"))
+                # core.set_variable("CC ROOT n QUADRUPOLE", core.variable("CC QUADRUPOLE"))  # P::e CCENERGY
 
             n_root = sum(core.get_global_option("ROOTS_PER_IRREP"))
             for rn in range(n_root):
@@ -3552,20 +3577,20 @@ def run_adcc(name, **kwargs):
                 continue
             energy = mp.energy_correction(level)
             mp_corr += energy
-            adc_wfn.set_variable(f"MP{level} correlation energy", energy)
-            adc_wfn.set_variable(f"MP{level} total energy", mp.energy(level))
+            adc_wfn.set_variable(f"MP{level} CORRELATION ENERGY", energy)
+            adc_wfn.set_variable(f"MP{level} TOTAL ENERGY", mp.energy(level))
             core.print_out(f"    Energy correlation MP{level}   {energy:15.8g} [Eh]\n")
         core.print_out("    Energy             total {0:15.8g} [Eh]\n".format(mp_energy))
-    adc_wfn.set_variable("current correlation energy", mp_corr)  # P::e ADC
-    adc_wfn.set_variable("current energy", mp_energy)  # P::e ADC
+    adc_wfn.set_variable("CURRENT CORRELATION ENERGY", mp_corr)  # P::e ADC
+    adc_wfn.set_variable("CURRENT ENERGY", mp_energy)  # P::e ADC
 
     # Set results of excited-states computation
     # TODO Does not work: Can't use strings
     # adc_wfn.set_variable("excitation kind", state.kind)
-    adc_wfn.set_variable("number of iterations", state.n_iter)  # P::e ADC
+    adc_wfn.set_variable("ADC ITERATIONS", state.n_iter)  # P::e ADC
     adc_wfn.set_variable(name + " excitation energies",
                          core.Matrix.from_array(state.excitation_energy.reshape(-1, 1)))
-    adc_wfn.set_variable("number of excited states", len(state.excitation_energy))  # P::e ADC
+    adc_wfn.set_variable("number of excited states", len(state.excitation_energy))
 
     core.print_out("\n\n  ==> Excited states summary <==  \n")
     core.print_out("\n" + state.describe(oscillator_strengths=False) + "\n")
@@ -4469,7 +4494,7 @@ def run_fisapt(name, **kwargs):
 
     fisapt_wfn = core.FISAPT(ref_wfn)
     from .sapt import fisapt_proc
-    fisapt_wfn.compute_energy()
+    fisapt_wfn.compute_energy(external_potentials=kwargs.get("external_potentials", None))
 
     # Compute -D dispersion
     if "-d" in name.lower():
