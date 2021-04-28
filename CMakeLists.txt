@@ -268,6 +268,7 @@ ExternalProject_Add(psi4-core
               -DENABLE_cppe=${ENABLE_cppe}
               -DENABLE_erd=${ENABLE_erd}
               -DENABLE_simint=${ENABLE_simint}
+	      -DENABLE_Libint1t=${ENABLE_Libint1}
               -DENABLE_gdma=${ENABLE_gdma}
               -DENABLE_PCMSolver=${ENABLE_PCMSolver}
               -DENABLE_mdi=${ENABLE_mdi}
@@ -285,7 +286,6 @@ ExternalProject_Add(psi4-core
               -Dgdma_DIR=${gdma_DIR}
               -DLibint_DIR=${Libint_DIR}
               -DLibint2_DIR=${Libint2_DIR}
-              -Dlibint2_DIR=${Libint2_DIR}
               -DPCMSolver_DIR=${PCMSolver_DIR}
               -Dmdi_DIR=${mdi_DIR}
               -Dpybind11_DIR=${pybind11_DIR}
@@ -319,3 +319,4 @@ install(DIRECTORY samples
         DESTINATION ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/psi4
         USE_SOURCE_PERMISSIONS
         PATTERN "example_psi4rc_file" EXCLUDE)
+
