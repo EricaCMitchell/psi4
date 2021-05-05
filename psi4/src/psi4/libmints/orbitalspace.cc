@@ -195,10 +195,10 @@ OrbitalSpace orthogonalize(const std::string &id, const std::string &name, const
     outfile->Printf("    %d linear dependencies will be \'removed\'.\n", nlindep);
 
     auto localfactory = std::make_shared<IntegralFactory>(bs);
-    return OrbitalSpace(id, name, sqrtm, bs, localfactory);
+    return OrbitalSpace(id, name, X, bs, localfactory);
 }
 
-OrbitalSpace orthogonal_compliment(const OrbitalSpace &space1, const OrbitalSpace &space2, const std::string &id,
+OrbitalSpace orthogonal_complement(const OrbitalSpace &space1, const OrbitalSpace &space2, const std::string &id,
                                    const std::string &name, const double &lindep_tol) {
     outfile->Printf("    Projecting out '%s' from '%s' to obtain space '%s'\n", space1.name().c_str(),
                     space2.name().c_str(), name.c_str());
@@ -272,9 +272,9 @@ OrbitalSpace orthogonal_compliment(const OrbitalSpace &space1, const OrbitalSpac
     // Half-back transform to space2
     auto newC = std::make_shared<Matrix>("Transformation matrix", space2.C()->rowspi(), zeros);
     newC->gemm(false, false, 1.0, space2.C(), V, 0.0);
+#endif
 
     return OrbitalSpace(id, name, newC, space2.basisset(), space2.integral());
-#endif
 }
 }  // namespace
 
