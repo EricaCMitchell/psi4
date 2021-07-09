@@ -161,8 +161,8 @@ void OrbitalSpace::print() const {
     basis_->print_summary();
     outfile->Printf("        Dimensions: ");
     dim_.print();
-    //    outfile->Printf( "        Transformation matrix:\n");
-    //    C_->print();
+    //	outfile->Printf( "        Transformation matrix:\n");
+    //	C_->print();
 }
 
 namespace {  // anonymous
@@ -188,6 +188,9 @@ OrbitalSpace orthogonalize(const std::string &id, const std::string &name, const
             }
         }
     }
+
+    evals->print();
+    sqrtm->print();
 
     auto X = std::make_shared<Matrix>("Transformation Matrix Space2", SODIM, SODIM);
     X->gemm(false, false, 1.0, evecs, sqrtm, 0.0);
