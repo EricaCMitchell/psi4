@@ -171,6 +171,7 @@ OrbitalSpace orthogonalize(const std::string &id, const std::string &name, const
     outfile->Printf("    Orthogonalizing basis for space %s.\n", name.c_str());
 
     SharedMatrix overlap = OrbitalSpace::overlap(bs, bs);
+
     Dimension SODIM = overlap->rowspi();
     auto evecs = std::make_shared<Matrix>("evecs", SODIM, SODIM);
     auto sqrtm = std::make_shared<Matrix>("evecs", SODIM, SODIM);
@@ -188,9 +189,6 @@ OrbitalSpace orthogonalize(const std::string &id, const std::string &name, const
             }
         }
     }
-
-    evals->print();
-    sqrtm->print();
 
     auto X = std::make_shared<Matrix>("Transformation Matrix Space2", SODIM, SODIM);
     X->gemm(false, false, 1.0, evecs, sqrtm, 0.0);
@@ -218,7 +216,7 @@ OrbitalSpace orthogonal_complement(const OrbitalSpace &space1, const OrbitalSpac
     auto C12 = std::make_shared<Matrix>("C12", space1.C()->colspi(), space2.C()->colspi());
     C12->transform(space1.C(), O12, space2.C());
     //        C12->print();
-     
+
     // SVD of MO overlap matrix
     std::tuple<SharedMatrix, SharedVector, SharedMatrix> svd_temps = C12->svd_a_temps();
     SharedMatrix U = std::get<0>(svd_temps);
