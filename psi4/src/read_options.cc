@@ -2186,9 +2186,11 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         options.add_int("MADMP2_SLEEP", 0);
         /*- Primary basis set -*/
         options.add_str("BASIS", "NONE");
-        /*- Auxiliary basis set for MP2 density fitting computations.
-        :ref:`Defaults <apdx:basisFamily>` to a RI basis. -*/
+        /*- Auxiliary basis set for MP2 density fitting computations. -*/
         options.add_str("DF_BASIS_MP2", "");
+        /*- Auxiliary basis set for construction of CABS for F12 methods
+	 * :ref:`Defaults <apdx:basisFamily>` to a RI basis. -*/
+        options.add_str("CABS_BASIS", "");
         /*- OS Scale -*/
         options.add_double("MP2_OS_SCALE", 6.0 / 5.0);
         /*- SS Scale  -*/

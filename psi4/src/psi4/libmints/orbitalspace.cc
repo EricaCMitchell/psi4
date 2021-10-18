@@ -181,7 +181,7 @@ OrbitalSpace orthogonalize(const std::string &id, const std::string &name, const
     overlap->diagonalize(evecs, evals, descending);
     for (int h = 0; h < SODIM.n(); h++) {
         for (int i = 0; i < SODIM[h]; i++) {
-            if (std::fabs(evals->get(h, i)) > lindep_tol) {
+            if (std::fabs(sqrt(evals->get(h, i))) > lindep_tol) {
                 sqrtm->set(h, i, i, 1.0 / sqrt(evals->get(h, i)));
             } else {
                 sqrtm->set(h, i, i, 0.0);
@@ -190,7 +190,8 @@ OrbitalSpace orthogonalize(const std::string &id, const std::string &name, const
         }
     }
 
-    auto X = std::make_shared<Matrix>("Transformation Matrix Space2", SODIM, SODIM);
+    // Canonical Orthogonalization
+    auto X = std::make_shared<Matrix>("Transformation Matrix Space 2", SODIM, SODIM);
     X->gemm(false, false, 1.0, evecs, sqrtm, 0.0);
 
     outfile->Printf("    %d linear dependencies will be \'removed\'.\n", nlindep);
@@ -209,12 +210,13 @@ OrbitalSpace orthogonal_complement(const OrbitalSpace &space1, const OrbitalSpac
         outfile->Printf("    '%s' space is empty. Nothing to project out.\n", space1.name().c_str());
         return OrbitalSpace(id, name, space2.C(), space2.evals(), space2.basisset(), space2.integral());
     }
-
+    
     // Overlap Matrix
     SharedMatrix O12 = OrbitalSpace::overlap(space1, space2);
 
     auto C12 = std::make_shared<Matrix>("C12", space1.C()->colspi(), space2.C()->colspi());
-    C12->transform(space1.C(), O12, space2.C());
+    //C12->transform(space1.C(), O12, space2.C());
+    C12->gemm(false,false,1.0,O12,space2.C(),0.0);
     //        C12->print();
 
     // SVD of MO overlap matrix
@@ -227,6 +229,7 @@ OrbitalSpace orthogonal_complement(const OrbitalSpace &space1, const OrbitalSpac
     // Select nullspace vectors from V
     Dimension dim_zero(space1.nirrep());
     Dimension Np(S->dimpi());
+
     auto V_Nt = Vt->get_block({Np, Vt->rowspi()},{dim_zero, Vt->colspi()});
     auto V_N = V_Nt->transpose();
 
