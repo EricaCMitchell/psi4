@@ -226,19 +226,19 @@ OrbitalSpace orthogonal_complement(const OrbitalSpace &space1, const OrbitalSpac
     SharedMatrix Vt = std::get<2>(svd_temps);
     C12->svd_a(U, S, Vt);
     
-    // Remove near-zero values from the S matrix
-    //Dimension zeros(space1.nirrep());
-    //for (int i = 0; i < S->dimpi()[0]; ++i) {
-    //    if (S->get(0, i) < lindep_tol) zeros[0]++;
-    //}
+    // Remove near-zero eigenvalues from the S matrix
+    Dimension nlindep(space1.nirrep());
+    for (int i = 0; i < S->dimpi()[0]; ++i) {
+        if (S->get(0, i) < lindep_tol) nlindep[0]++;
+    }
 
     // Select nullspace vectors from V
     Dimension dim_zero(space1.nirrep());
-    Dimension Np(S->dimpi());
-
+    Dimension Np(S->dimpi() - nlindep);
     auto V_Nt = Vt->get_block({Np, Vt->rowspi()},{dim_zero, Vt->colspi()});
     auto V_N = V_Nt->transpose();
 
+    outfile->Printf("    %d linear dependencies will be \'removed\'.\n", nlindep[0]);
     outfile->Printf("        Orbital space before projecting out: ");
     space2.dim().print();
     outfile->Printf("        Orbital space after projecting out:  ");
