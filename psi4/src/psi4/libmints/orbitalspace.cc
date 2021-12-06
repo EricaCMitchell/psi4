@@ -168,7 +168,7 @@ void OrbitalSpace::print() const {
 namespace {  // anonymous
 OrbitalSpace orthogonalize(const std::string &id, const std::string &name, const std::shared_ptr<BasisSet> &bs,
                            double lindep_tol) {
-    outfile->Printf("    Orthogonalizing basis for space %s.\n", name.c_str());
+    outfile->Printf("\n    Orthogonalizing basis for space %s.\n", name.c_str());
 
     SharedMatrix overlap = OrbitalSpace::overlap(bs, bs);
 
@@ -225,6 +225,12 @@ OrbitalSpace orthogonal_complement(const OrbitalSpace &space1, const OrbitalSpac
     SharedVector S = std::get<1>(svd_temps);
     SharedMatrix Vt = std::get<2>(svd_temps);
     C12->svd_a(U, S, Vt);
+    
+    // Remove near-zero values from the S matrix
+    //Dimension zeros(space1.nirrep());
+    //for (int i = 0; i < S->dimpi()[0]; ++i) {
+    //    if (S->get(0, i) < lindep_tol) zeros[0]++;
+    //}
 
     // Select nullspace vectors from V
     Dimension dim_zero(space1.nirrep());
@@ -242,41 +248,6 @@ OrbitalSpace orthogonal_complement(const OrbitalSpace &space1, const OrbitalSpac
     // Half-back transform to space2
     auto newC = std::make_shared<Matrix>("Transformation matrix", space2.C()->rowspi(), V_N->colspi());
     newC->gemm(false, false, 1.0, space2.C(), V_N, 0.0);
-
-#if notSVD
-    // We're interested in the right side vectors (V) of an SVD solution.
-    // We don't need a full SVD solution just part of it. Do it by hand:
-    auto D11 = std::make_shared<Matrix>("D11", C12->colspi(), C12->colspi());
-    D11->gemm(true, false, 1.0, C12, C12, 0.0);
-    //        D11->print();
-
-    auto V11 = std::make_shared<Matrix>("V11", D11->rowspi(), D11->colspi());
-    auto E1 = std::make_shared<Vector>("E1", D11->colspi());
-    D11->diagonalize(V11, E1);
-    //        V11->eivprint(E1);
-
-    // Count the number of eigenvalues < lindep_tol
-    Dimension zeros(space1.nirrep());
-    for (int h = 0; h < space1.nirrep(); ++h) {
-        for (int i = 0; i < E1->dimpi()[h]; ++i) {
-            if (E1->get(h, i) < lindep_tol) zeros[h]++;
-        }
-    }
-
-    outfile->Printf("        Orbital space before projecting out: ");
-    space2.dim().print();
-    outfile->Printf("        Orbital space after projecting out:  ");
-    zeros.print();
-    outfile->Printf("\n");
-
-    // Pull out the nullspace vectors
-    Dimension dim_zero(space1.nirrep());
-    SharedMatrix V = V11->get_block({dim_zero, V11->rowspi()}, {dim_zero, zeros});
-
-    // Half-back transform to space2
-    auto newC = std::make_shared<Matrix>("Transformation matrix", space2.C()->rowspi(), zeros);
-    newC->gemm(false, false, 1.0, space2.C(), V, 0.0);
-#endif
 
     return OrbitalSpace(id, name, newC, space2.basisset(), space2.integral());
 }
