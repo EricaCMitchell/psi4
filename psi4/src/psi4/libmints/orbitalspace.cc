@@ -217,7 +217,6 @@ OrbitalSpace orthogonal_complement(const OrbitalSpace &space1, const OrbitalSpac
     auto C12 = std::make_shared<Matrix>("C12", space1.C()->colspi(), space2.C()->colspi());
     //C12->transform(space1.C(), O12, space2.C());
     C12->gemm(false, false, 1.0, O12, space2.C(), 0.0);
-            C12->print();
 
     // SVD of MO overlap matrix
     std::tuple<SharedMatrix, SharedVector, SharedMatrix> svd_temps = C12->svd_a_temps();
