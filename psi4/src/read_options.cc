@@ -2236,6 +2236,7 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         /*- Auxiliary basis set for construction of CABS for F12 methods
 	 * :ref:`Defaults <apdx:basisFamily>` to a RI basis. -*/
         options.add_str("CABS_BASIS", "");
+    }
     if (name == "PSIMRCC" || options.read_globals()) {
         /*- MODULEDESCRIPTION Performs multireference coupled cluster computations.  This theory
            should be used only by advanced users with a good working knowledge of multireference
