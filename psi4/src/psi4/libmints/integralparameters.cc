@@ -64,20 +64,20 @@ FittedSlaterCorrelationFactor::FittedSlaterCorrelationFactor(double exponent) : 
     slater_exponent_ = exponent;
 
     // The fitting coefficients
-    coeffs->set(0, 0, -0.3144);
-    coeffs->set(0, 1, -0.3037);
-    coeffs->set(0, 2, -0.1681);
-    coeffs->set(0, 3, -0.09811);
-    coeffs->set(0, 4, -0.06024);
-    coeffs->set(0, 5, -0.03726);
+    coeffs->set(0, 0, -0.31442480597241274);
+    coeffs->set(0, 1, -0.30369575353387201);
+    coeffs->set(0, 2, -0.16806968430232927);
+    coeffs->set(0, 3, -0.098115812152857612);
+    coeffs->set(0, 4, -0.060246640234342785);
+    coeffs->set(0, 5, -0.037263541968504843);
 
     // and the exponents
-    exps->set(0, 0, 0.2209);
-    exps->set(0, 1, 1.004);
-    exps->set(0, 2, 3.622);
-    exps->set(0, 3, 12.16);
-    exps->set(0, 4, 45.87);
-    exps->set(0, 5, 254.4);
+    exps->set(0, 0, 0.22085085450735284);
+    exps->set(0, 1, 1.0040191632019282);
+    exps->set(0, 2, 3.6212173098378728);
+    exps->set(0, 3, 12.162483236221904);
+    exps->set(0, 4, 45.855332448029337);
+    exps->set(0, 5, 254.23460688554644);
 
     // They just need to be scaled
     double expsq = exponent * exponent;
