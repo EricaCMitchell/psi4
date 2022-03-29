@@ -475,6 +475,7 @@ void export_mints(py::module& m) {
 
         // def("set_name", &Matrix::set_name, "docstring").
         // def("name", &Matrix::name, py::return_value_policy::copy, "docstring").
+        .def("print_to_numpy", &Matrix::print_to_numpy, "Prints the matrix as numpy array to the output file")
         .def("print_out", &Matrix::print_out, "Prints the matrix to the output file")
         .def("print_atom_vector", &Matrix::print_atom_vector, "RMRoutfile"_a = "outfile",
              "Print the matrix with atom labels, assuming it is an natom X 3 tensor")

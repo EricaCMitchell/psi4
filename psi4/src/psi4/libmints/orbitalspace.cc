@@ -190,14 +190,12 @@ OrbitalSpace orthogonalize(const std::string &id, const std::string &name, const
         }
     }
 
-    // Canonical Orthogonalization
-    auto X = std::make_shared<Matrix>("Transformation Matrix Space 2", SODIM, SODIM);
-    X->gemm(false, false, 1.0, evecs, sqrtm, 0.0);
+    sqrtm->back_transform(evecs);
 
     outfile->Printf("    %d linear dependencies will be \'removed\'.\n", nlindep);
 
     auto localfactory = std::make_shared<IntegralFactory>(bs);
-    return OrbitalSpace(id, name, X, bs, localfactory);
+    return OrbitalSpace(id, name, sqrtm, bs, localfactory);
 }
 
 OrbitalSpace orthogonal_complement(const OrbitalSpace &space1, const OrbitalSpace &space2, const std::string &id,
@@ -224,7 +222,7 @@ OrbitalSpace orthogonal_complement(const OrbitalSpace &space1, const OrbitalSpac
     SharedVector S = std::get<1>(svd_temps);
     SharedMatrix Vt = std::get<2>(svd_temps);
     C12->svd_a(U, S, Vt);
-    
+  
     // Remove near-zero eigenvalues from the S matrix
     Dimension nlindep(space1.nirrep());
     for (int i = 0; i < S->dimpi()[0]; ++i) {

@@ -587,6 +587,11 @@ class PSI_API Matrix : public std::enable_shared_from_this<Matrix> {
     void print_to_mathematica();
 
     /**
+     * Prints the matrix so that it can be copied and pasted into a numpy array easily.
+     */
+    void print_to_numpy();
+
+    /**
      * Print the matrix with corresponding eigenvalues below each column
      *
      * @param values Eigenvalues to print associated with eigenvectors.

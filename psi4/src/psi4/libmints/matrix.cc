@@ -63,6 +63,7 @@
 #include <regex>
 #include <tuple>
 #include <memory>
+#include <omp.h>
 
 // In molecule.cc
 namespace psi {
@@ -815,6 +816,31 @@ void Matrix::print_to_mathematica() {
         if (h < nirrep_ - 1) outfile->Printf(",\n");
     }
     outfile->Printf("}\n");
+}
+
+void Matrix::print_to_numpy() {
+    if (name_.length())
+        outfile->Printf("  ## %s in numpy array form ##\n", name_.c_str());
+    else
+        outfile->Printf("  ## Request matrix in numpy array form ##\n");
+
+    for (int h = 0; h < nirrep_; ++h) {
+        outfile->Printf("[");
+
+        for (int r = 0; r < rowspi_[h]; ++r) {
+            outfile->Printf("[");
+            for (int c = 0; c < colspi_[h ^ symmetry_]; ++c) {
+                outfile->Printf("%14.12lf", get(h, r, c));
+                if (c < colspi_[h] - 1) outfile->Printf(", ");
+            }
+            outfile->Printf("]");
+            if (r < rowspi_[h] - 1) outfile->Printf(",\n");
+        }
+
+        outfile->Printf("]");
+        if (h < nirrep_ - 1) outfile->Printf(",\n");
+    }
+    outfile->Printf("\n");
 }
 
 void Matrix::print_atom_vector(std::string out) {
@@ -1699,6 +1725,7 @@ std::tuple<SharedMatrix, SharedVector, SharedMatrix> Matrix::svd_a_temps() {
     auto U = std::make_shared<Matrix>("U", rowspi_, rowspi_);
     auto S = std::make_shared<Vector>("S", rank);
     auto V = std::make_shared<Matrix>("V", colspi_, colspi_);
+
     return std::tuple<SharedMatrix, SharedVector, SharedMatrix>(U, S, V);
 }
 
@@ -1762,16 +1789,25 @@ void Matrix::svd_a(SharedMatrix &U, SharedVector &S, SharedMatrix &V) {
             double **Up = U->pointer(h);
             double **Vp = V->pointer(h ^ symmetry_);
 
+	    //print_mat(Ap, m, n, "outfile");
+
             int *iwork = new int[8L * k];
+	    ::memset((void *)iwork, 0, 8L * k);
+
+	    int nthreads = omp_get_num_threads();
+	    omp_set_num_threads(1);
 
             // Workspace Query
-            double lwork;
+            double lwork = 0.0;
             int info = C_DGESDD('A', n, m, Ap[0], n, Sp, Vp[0], n, Up[0], m, &lwork, -1, iwork);
 
             double *work = new double[(int)lwork];
+	    ::memset((void *)work, 0, (int)lwork);
 
             // SVD
             info = C_DGESDD('A', n, m, Ap[0], n, Sp, Vp[0], n, Up[0], m, work, (int)lwork, iwork);
+
+	    omp_set_num_threads(nthreads);
 
             delete[] work;
             delete[] iwork;
