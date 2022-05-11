@@ -63,7 +63,10 @@
 #include <regex>
 #include <tuple>
 #include <memory>
+
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 
 // In molecule.cc
 namespace psi {
@@ -834,11 +837,11 @@ void Matrix::print_to_numpy() {
                 if (c < colspi_[h] - 1) outfile->Printf(", ");
             }
             outfile->Printf("]");
-            if (r < rowspi_[h] - 1) outfile->Printf(",\n");
+            if (r < rowspi_[h] - 1) outfile->Printf(", \n");
         }
 
         outfile->Printf("]");
-        if (h < nirrep_ - 1) outfile->Printf(",\n");
+        if (h < nirrep_ - 1) outfile->Printf(", \n");
     }
     outfile->Printf("\n");
 }
@@ -1794,8 +1797,8 @@ void Matrix::svd_a(SharedMatrix &U, SharedVector &S, SharedMatrix &V) {
             int *iwork = new int[8L * k];
 	    ::memset((void *)iwork, 0, 8L * k);
 
-	    int nthreads = omp_get_num_threads();
-	    omp_set_num_threads(1);
+            int nthreads = omp_get_num_threads();
+            omp_set_num_threads(1);
 
             // Workspace Query
             double lwork = 0.0;
@@ -1807,7 +1810,7 @@ void Matrix::svd_a(SharedMatrix &U, SharedVector &S, SharedMatrix &V) {
             // SVD
             info = C_DGESDD('A', n, m, Ap[0], n, Sp, Vp[0], n, Up[0], m, work, (int)lwork, iwork);
 
-	    omp_set_num_threads(nthreads);
+            omp_set_num_threads(nthreads);
 
             delete[] work;
             delete[] iwork;
