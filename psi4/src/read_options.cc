@@ -178,6 +178,9 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
     /*- Algorithm to use for MPn ( $n>2$ ) computation (e.g., MP3 or MP2.5 or MP4(SDQ)).
     See :ref:`Cross-module Redundancies <table:managedmethods>` for details. -*/
     options.add_str("MP_TYPE", "CONV", "DF CONV CD");
+    /*- Algorithm to use for F12 computation.
+    See :ref:`Cross-module Redundancies <table:managedmethods>` for details. -*/
+    options.add_str("F12_TYPE", "CONV", "CONV DF");
     // The type of integrals to use in coupled cluster computations. DF activates density fitting for the largest
     // integral files, while CONV results in no approximations being made.
     /*- Algorithm to use for CC or CEPA computation (e.g., CCD, CCSD(T), CEPA(3), ACPF).
@@ -2188,9 +2191,6 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         options.add_str("BASIS", "NONE");
         /*- Auxiliary basis set for MP2 density fitting computations. -*/
         options.add_str("DF_BASIS_MP2", "");
-        /*- Auxiliary basis set for construction of CABS for F12 methods
-	 * :ref:`Defaults <apdx:basisFamily>` to a RI basis. -*/
-        options.add_str("CABS_BASIS", "");
         /*- OS Scale -*/
         options.add_double("MP2_OS_SCALE", 6.0 / 5.0);
         /*- SS Scale  -*/

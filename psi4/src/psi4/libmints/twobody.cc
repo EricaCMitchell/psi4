@@ -32,6 +32,7 @@
 #include "psi4/libmints/integral.h"
 #include "psi4/libmints/basisset.h"
 #include "psi4/libmints/molecule.h"
+#include "psi4/libpsi4util/PsiOutStream.h"
 
 ;
 using namespace psi;
