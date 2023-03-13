@@ -828,20 +828,14 @@ void Matrix::print_to_numpy() {
         outfile->Printf("  ## Request matrix in numpy array form ##\n");
 
     for (int h = 0; h < nirrep_; ++h) {
-        outfile->Printf("[");
-
         for (int r = 0; r < rowspi_[h]; ++r) {
-            outfile->Printf("[");
             for (int c = 0; c < colspi_[h ^ symmetry_]; ++c) {
                 outfile->Printf("%14.12lf", get(h, r, c));
-                if (c < colspi_[h] - 1) outfile->Printf(", ");
+                if (c < colspi_[h] - 1) outfile->Printf(" ");
             }
-            outfile->Printf("]");
-            if (r < rowspi_[h] - 1) outfile->Printf(", \n");
+            if (r < rowspi_[h] - 1) outfile->Printf("\n");
         }
-
-        outfile->Printf("]");
-        if (h < nirrep_ - 1) outfile->Printf(", \n");
+        if (h < nirrep_ - 1) outfile->Printf("\n");
     }
     outfile->Printf("\n");
 }
