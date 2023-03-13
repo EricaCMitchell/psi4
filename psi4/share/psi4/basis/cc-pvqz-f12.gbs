@@ -1,50 +1,41 @@
 spherical
 
-!  cc-pVQZ-F12  EMSL  Basis Set Exchange Library   8/23/21 3:15 PM
+!  cc-pVQZ-F12  Basis Set Exchange Library   3/13/23 9:19 AM
 ! Elements                             References
 ! --------                             ----------
-! H He B C N O F Ne Al Si P S Cl Ar: K.A. Peterson, T.B. Adler, and H.-J. Werner, Systematically convergent basis sets for explicitly correlated wavefunctions: The atoms H, He, B?Ne, and Al?Ar, Journal of Chemical Physics 128, 084102 (2008).
-! Li Be Na Mg: J.G. Hill, Peterson, K.A. Correlation consistent basis sets for explicitly correlated wavefunctions: valence and core-valence basis sets for Li, Be, Na, and Mg. Phys. Chem. Chem. Phys., 12, 10460 (2010). 
-
-
+! H He B C N O F Ne Al Si P S Cl Ar: K.A. Peterson, T.B. Adler, and H.-J. Werner, Systematically convergent basis sets for explicitly correlated wavefunctions: The atoms H, He, B-Ne, and Al-Ar, Journal of Chemical Physics 128, 084102 (2008).
+! Li Be Na Mg: J. G. Hill, K. A. Peterson, Correlation consistent basis sets for explicitly correlated wavefunctions: valence and core-valence basis sets for Li, Be, Na, and Mg, Physical Chemistry Chemical Physics 12, 10460 (2010).
+! 
 
 ****
 H     0
-S    8   1.00
-      4.020000D+02           2.7900000D-04
-      6.024000D+01           2.1650000D-03
-      1.373000D+01           1.1201000D-02
-      3.905000D+00           4.4878000D-02
-      1.283000D+00           1.4229900D-01
-      4.655000D-01           3.3097900D-01
-      1.811000D-01           4.3626900D-01
-      7.279000D-02           1.7644000D-01
+S    4   1.00
+    402.0000000              0.0002790
+     60.2400000              0.0021650
+     13.7300000              0.0112010
+      3.9050000              0.0448780
 S    1   1.00
-      1.283000D+00           1.0000000D+00
+      1.2830000              1.0000000
 S    1   1.00
-      4.655000D-01           1.0000000D+00
+      0.4655000              1.0000000
 S    1   1.00
-      1.811000D-01           1.0000000D+00
+      0.1811000              1.0000000
 S    1   1.00
-      7.279000D-02           1.0000000D+00
+      0.0727900              1.0000000
 P    1   1.00
-      1.831700D+00           1.0000000D+00
+      3.2599000              1.0000000
 P    1   1.00
-      8.025000D-01           1.0000000D+00
+      1.2389000              1.0000000
 P    1   1.00
-      3.516000D-01           1.0000000D+00
+      0.4708000              1.0000000
 P    1   1.00
-      1.540000D-01           1.0000000D+00
+      0.1789000              1.0000000
 D    1   1.00
-      8.859000D-01           1.0000000D+00
+      1.1111000              1.0000000
 D    1   1.00
-      4.521000D-01           1.0000000D+00
-D    1   1.00
-      2.307000D-01           1.0000000D+00
+      0.3501000              1.0000000
 F    1   1.00
-      6.114000D-01           1.0000000D+00
-F    1   1.00
-      3.135000D-01           1.0000000D+00
+      0.4796000              1.0000000
 ****
 He     0
 S    4   1.00

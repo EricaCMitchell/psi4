@@ -1,9 +1,9 @@
 spherical
 
-!  cc-pVQZ-F12-OPTRI  Basis Set Exchange Library   3/13/23 9:30 AM
+!  cc-pCVDZ-F12-OPTRI  Basis Set Exchange Library   3/13/23 9:30 AM
 ! Elements                             References
 ! --------                             ----------
-! H B C N O F Ne Al Si P S Cl Ar: K. E. Yousaf, K. A. Peterson, Optimized auxiliary basis sets for explicitly correlated methods, Journal of Chemical Physics 129, 184108 (2008). 
+! B C N O F Ne Al Si P S Cl Ar: J. G. Hill, S. Mazumder, K. A. Peterson, Correlation consistent basis sets for molecular core-valence effects with explicitly correlated wave functions: The atoms B-Ne and Al-Ar, Journal of Chemical Physics 132, 054108 (2010).
 ! Li Be Na Mg: J. G. Hill, K. A. Peterson, Correlation consistent basis sets for explicitly correlated wavefunctions: valence and core-valence basis sets for Li, Be, Na, and Mg, Physical Chemistry Chemical Physics 12, 10460 (2010).
 !
 
