@@ -212,8 +212,8 @@ OrbitalSpace orthogonal_complement(const OrbitalSpace &space1, const OrbitalSpac
     // Overlap Matrix
     SharedMatrix O12 = OrbitalSpace::overlap(space1, space2);
 
+    // Half-transform to RIBS
     auto C12 = std::make_shared<Matrix>("C12", space1.C()->colspi(), space2.C()->colspi());
-    //C12->transform(space1.C(), O12, space2.C());
     C12->gemm(false, false, 1.0, O12, space2.C(), 0.0);
 
     // SVD of MO overlap matrix
@@ -222,7 +222,7 @@ OrbitalSpace orthogonal_complement(const OrbitalSpace &space1, const OrbitalSpac
     SharedVector S = std::get<1>(svd_temps);
     SharedMatrix Vt = std::get<2>(svd_temps);
     C12->svd_a(U, S, Vt);
-  
+
     // Remove near-zero eigenvalues from the S matrix
     Dimension nlindep(space1.nirrep());
     for (int i = 0; i < S->dimpi()[0]; ++i) {
@@ -242,7 +242,7 @@ OrbitalSpace orthogonal_complement(const OrbitalSpace &space1, const OrbitalSpac
     (space2.dim() - Np).print();
     outfile->Printf("\n");
 
-    // Half-back transform to space2
+    // Half-back transform to RIBS
     auto newC = std::make_shared<Matrix>("Transformation matrix", space2.C()->rowspi(), V_N->colspi());
     newC->gemm(false, false, 1.0, space2.C(), V_N, 0.0);
 
