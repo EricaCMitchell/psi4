@@ -2230,13 +2230,6 @@ int read_options(const std::string &name, Options &options, bool suppress_printi
         /*- What is the maximum number of iterations? -*/
         options.add_int("EP2_MAXITER", 20);
     }
-    if (name == "MP2F12" || options.read_globals()){
-	/*- MODULEDESCRIPTION Performs MP2-F12/3C computations for RHF reference wavefunctions. -*/
-
-        /*- Auxiliary basis set for construction of CABS for F12 methods
-	 * :ref:`Defaults <apdx:basisFamily>` to a RI basis. -*/
-        options.add_str("CABS_BASIS", "");
-    }
     if (name == "PSIMRCC" || options.read_globals()) {
         /*- MODULEDESCRIPTION Performs multireference coupled cluster computations.  This theory
            should be used only by advanced users with a good working knowledge of multireference
